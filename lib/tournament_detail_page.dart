@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'match_detail_page.dart';
 import 'players_page.dart';
+import 'add_tournament_page.dart'; // Make sure this exists
 
 class TournamentDetailPage extends StatelessWidget {
   final Map<String, dynamic> tournament;
+  final bool isAdmin = true; // You can pass this as a parameter too
 
   const TournamentDetailPage({super.key, required this.tournament});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -27,19 +29,89 @@ class TournamentDetailPage extends StatelessWidget {
             unselectedLabelColor: Colors.white,
             indicatorColor: Colors.amber,
             tabs: [
+              Tab(text: 'About'),
               Tab(text: 'Fixtures'),
               Tab(text: 'Teams'),
               Tab(text: 'Points Table'),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            FixturesTab(),
-            TeamsTab(),
-            PointsTableTab(),
+            AboutTab(tournament: tournament, isAdmin: isAdmin),
+            const FixturesTab(),
+            const TeamsTab(),
+            const PointsTableTab(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class AboutTab extends StatelessWidget {
+  final Map<String, dynamic> tournament;
+  final bool isAdmin;
+
+  const AboutTab({super.key, required this.tournament, required this.isAdmin});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        InfoTile(title: 'Tournament Name', value: tournament['name']),
+        InfoTile(title: 'Sport Type', value: tournament['sportType'] ?? 'N/A'),
+        InfoTile(title: 'Start Date', value: tournament['startDate'] ?? 'N/A'),
+        InfoTile(title: 'End Date', value: tournament['endDate'] ?? 'N/A'),
+        InfoTile(title: 'Organizer', value: tournament['organizer'] ?? 'N/A'),
+        InfoTile(title: 'Location', value: tournament['location'] ?? 'N/A'),
+        InfoTile(
+          title: 'Description',
+          value: tournament['description'] ?? 'No description available.',
+        ),
+        const SizedBox(height: 20),
+        if (isAdmin)
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTournamentPage(
+                    tournamentId: tournament['id'],
+                    tournament: tournament,
+                    isUpdate: true,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.edit),
+            label: const Text('Update Tournament'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              textStyle: const TextStyle(fontSize: 16),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class InfoTile extends StatelessWidget {
+  final String title;
+  final String value;
+
+  const InfoTile({super.key, required this.title, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(value),
       ),
     );
   }
@@ -115,6 +187,8 @@ class _FixturesTabState extends State<FixturesTab> {
                     );
                     if (pickedDate != null) {
                       selectedDate = pickedDate;
+                      setState(
+                          () {}); // Refresh to show selected date if you want
                     }
                   },
                   child: const Text("Select Date"),

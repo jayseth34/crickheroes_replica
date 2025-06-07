@@ -5,7 +5,16 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AddTournamentPage extends StatefulWidget {
-  const AddTournamentPage({super.key});
+  final bool isUpdate;
+  final Map<String, dynamic>? tournament;
+  final int? tournamentId;
+
+  const AddTournamentPage({
+    Key? key,
+    this.isUpdate = false,
+    this.tournament,
+    this.tournamentId,
+  }) : super(key: key);
 
   @override
   State<AddTournamentPage> createState() => _AddTournamentPageState();
@@ -43,6 +52,85 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   final TextEditingController _durationController = TextEditingController();
   final TextEditingController _matchDetailController = TextEditingController();
 
+  bool _loading = false;
+
+  Map<String, dynamic>? tournamentData;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isUpdate) {
+      if (widget.tournamentId == null) {
+        throw Exception("tournamentId required for update");
+      }
+      _fetchTournamentDetails(widget.tournamentId!);
+    }
+  }
+
+  Future<void> _fetchTournamentDetails(int id) async {
+    setState(() {
+      _loading = true;
+    });
+
+    final url =
+        'https://sportsdecor.somee.com/api/Tournament/GetTournament/$id';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> tournamentData = json.decode(response.body);
+        print(tournamentData);
+        setState(() {
+          _tournamentNameController.text = tournamentData['name'] ?? '';
+          _placeController.text =
+              tournamentData['location'] ?? ''; // use 'location' from API
+          selectedTeamCount = tournamentData['numberOfTeams'] ?? 2;
+          _walletBalanceController.text =
+              (tournamentData['teamWalletBalance'] ?? 0).toString();
+          _playersPerTeamController.text =
+              (tournamentData['playersPerTeam'] ?? 0).toString();
+          _ownerNameController.text = tournamentData['ownerName'] ?? '';
+          _basePriceController.text =
+              (tournamentData['basePrice'] ?? 0).toString();
+          _durationController.text =
+              (tournamentData['duration'] ?? 0).toString();
+          _matchDetailController.text =
+              (tournamentData['matchDetail'] ?? 0).toString();
+          selectedSport =
+              (tournamentData['sportType'] ?? 'Cricket') ?? 'Cricket';
+
+          // Update payment amount based on team count
+          paymentAmount =
+              selectedTeamCount > 2 ? (selectedTeamCount - 2) * 100 : 0;
+
+          // Clear and add one empty admin controller because your response doesn't have admins
+          _adminControllers.clear();
+          _adminControllers.add(TextEditingController());
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load tournament: ${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading tournament: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.pop(context);
+    } finally {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
   Future<void> _pickImage() async {
     final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
@@ -62,9 +150,20 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Tournament'),
+        title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),
@@ -74,7 +173,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
           key: _formKey,
           child: Column(
             children: [
-              // Image Picker
               GestureDetector(
                 onTap: _pickImage,
                 child: Column(
@@ -98,16 +196,12 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Tap to add image',
-                      style: TextStyle(color: Colors.grey),
-                    )
+                    const Text('Tap to add image',
+                        style: TextStyle(color: Colors.grey))
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Form Fields
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(
@@ -141,20 +235,21 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                           ),
                         ],
                       ),
-                      ..._adminControllers.map((controller) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: TextFormField(
-                              controller: controller,
-                              keyboardType: TextInputType.phone,
-                              decoration: InputDecoration(
-                                hintText: 'Enter phone number',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              validator: _validatePhoneNumber,
+                      ..._adminControllers.map(
+                        (controller) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: TextFormField(
+                            controller: controller,
+                            keyboardType: TextInputType.phone,
+                            decoration: InputDecoration(
+                              hintText: 'Enter phone number',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
-                          )),
+                            validator: _validatePhoneNumber,
+                          ),
+                        ),
+                      ),
                       DropdownButtonFormField<int>(
                         value: selectedTeamCount,
                         decoration: InputDecoration(
@@ -170,7 +265,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
-                            selectedTeamCount = value!;
+                            selectedTeamCount = value ?? 2;
                             paymentAmount = selectedTeamCount > 2
                                 ? (selectedTeamCount - 2) * 100
                                 : 0;
@@ -221,7 +316,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                             .toList(),
                         onChanged: (value) {
                           setState(() {
-                            selectedSport = value!;
+                            selectedSport = value ?? 'Cricket';
                           });
                         },
                       ),
@@ -237,9 +332,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 24),
-
               ElevatedButton.icon(
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
@@ -273,7 +366,8 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                   }
                 },
                 icon: const Icon(Icons.check),
-                label: const Text('Submit', style: TextStyle(fontSize: 16)),
+                label: Text(widget.isUpdate ? 'Update Tournament' : 'Submit',
+                    style: const TextStyle(fontSize: 16)),
                 style: ElevatedButton.styleFrom(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
@@ -326,18 +420,22 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   Future<void> _submitTournament() async {
     final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
 
+    int parseOrZero(String text) => int.tryParse(text) ?? 0;
+
     final tournamentData = {
+      if (widget.isUpdate && widget.tournamentId != null)
+        "id": widget.tournamentId,
       "name": _tournamentNameController.text,
       "place": _placeController.text,
       "admins": _adminControllers.map((e) => e.text).toList(),
       "numberOfTeams": selectedTeamCount,
-      "teamWalletBalance": int.parse(_walletBalanceController.text),
-      "playersPerTeam": int.parse(_playersPerTeamController.text),
+      "teamWalletBalance": parseOrZero(_walletBalanceController.text),
+      "playersPerTeam": parseOrZero(_playersPerTeamController.text),
       "ownerName": _ownerNameController.text,
-      "basePrice": int.parse(_basePriceController.text),
-      "duration": int.parse(_durationController.text),
+      "basePrice": parseOrZero(_basePriceController.text),
+      "duration": parseOrZero(_durationController.text),
       "sport": selectedSport,
-      "matchDetail": int.parse(_matchDetailController.text)
+      "matchDetail": parseOrZero(_matchDetailController.text),
     };
 
     try {
@@ -349,7 +447,12 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Tournament Added Successfully")),
+          SnackBar(
+            content: Text(widget.isUpdate
+                ? "Tournament Updated Successfully"
+                : "Tournament Added Successfully"),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
       } else {

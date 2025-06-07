@@ -31,13 +31,23 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
   }
 
   void _onSearchChanged() {
-    final query = _searchController.text.toLowerCase();
+    final query = _searchController.text.trim().toLowerCase();
     setState(() {
-      _filteredTournaments = _allTournaments.where((tournament) {
-        final name = tournament['name'].toLowerCase();
-        final sport = tournament['sportType'].toLowerCase();
-        return name.contains(query) || sport.contains(query);
-      }).toList();
+      if (query.isEmpty) {
+        _filteredTournaments = List.from(_allTournaments);
+      } else {
+        _filteredTournaments = _allTournaments.where((tournament) {
+          final name = tournament['name']?.toLowerCase() ?? '';
+          final sport = tournament['sportType']?.toLowerCase() ?? '';
+          final startDate = tournament['startDate']?.toLowerCase() ?? '';
+          return name.contains(query) ||
+              sport.contains(query) ||
+              formatDate(tournament['startDate'])
+                  .toLowerCase()
+                  .contains(query) ||
+              startDate.contains(query);
+        }).toList();
+      }
     });
   }
 

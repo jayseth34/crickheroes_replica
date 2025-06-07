@@ -51,38 +51,54 @@ class PlayerDetailsPage extends StatelessWidget {
 
   Widget _buildProfileSection() {
     return Center(
-      child: Card(
-        elevation: 8,
-        shadowColor: Colors.blue.shade100,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 80,
-                backgroundColor: Colors.blue.shade200,
-                backgroundImage: player['photoUrl'] != null
-                    ? NetworkImage(player['photoUrl'])
-                    : const AssetImage('assets/default_profile.png')
-                        as ImageProvider,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                player['name'],
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.3,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 70,
+            backgroundColor: Colors.blue.shade200,
+            backgroundImage: player['photoUrl'] != null
+                ? NetworkImage(player['photoUrl'])
+                : const AssetImage('assets/default_profile.png')
+                    as ImageProvider,
           ),
-        ),
+          const SizedBox(height: 16),
+          Text(
+            player['name'],
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Multisport Athlete',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.blueGrey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            children: [
+              _tagChip('Team Player'),
+              _tagChip('Fitness Enthusiast'),
+            ],
+          )
+        ],
       ),
+    );
+  }
+
+  Widget _tagChip(String text) {
+    return Chip(
+      label: Text(text),
+      backgroundColor: Colors.blue.shade100,
+      labelStyle: const TextStyle(fontSize: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
   }
 
@@ -204,29 +220,34 @@ class PlayerDetailsPage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.blue.shade600, size: 28),
-          const SizedBox(width: 18),
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.blue.shade100,
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, color: Colors.blue.shade800, size: 22),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             flex: 2,
             child: Text(
               label,
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 18,
+                fontSize: 17,
                 color: Colors.black87,
               ),
             ),
           ),
-          const SizedBox(width: 16),
           Expanded(
             flex: 3,
             child: Text(
               value,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 16,
                 color: Colors.black54,
               ),
-              softWrap: true,
             ),
           ),
         ],
@@ -235,18 +256,60 @@ class PlayerDetailsPage extends StatelessWidget {
   }
 
   Widget _buildPerformanceSummary() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Text(
-        'Detailed stats, charts, highlights, or other insights about the player’s performance can be shown here to give a comprehensive view of their achievements and progress over time.',
-        style: TextStyle(
-          color: Colors.grey.shade700,
-          fontSize: 17,
-          height: 1.4,
-          letterSpacing: 0.3,
+    final performanceRating = player['rating'] ?? 75;
+    final consistency = player['consistency'] ?? 80;
+    final skillProgress = player['progress'] ?? 70;
+
+    return Card(
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            _progressIndicatorTile("Overall Rating", performanceRating),
+            const SizedBox(height: 18),
+            _progressIndicatorTile("Consistency", consistency),
+            const SizedBox(height: 18),
+            _progressIndicatorTile("Skill Progress", skillProgress),
+          ],
         ),
-        textAlign: TextAlign.justify,
       ),
+    );
+  }
+
+  Widget _progressIndicatorTile(String label, int value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: value / 100,
+          minHeight: 10,
+          backgroundColor: Colors.blue.shade50,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade700),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            "$value%",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueGrey.shade600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
