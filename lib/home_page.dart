@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'search_tournament_page.dart';
 import 'view_tournaments_page.dart';
 import 'search_player_page.dart';
-import 'my_profile_page.dart'; // Added import for profile page
+import 'my_profile_page.dart';
 import 'add_tournament_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -11,14 +11,29 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tournaments = [
-      {'title': 'Cricket Premier League', 'date': 'Starts May 10'},
-      {'title': 'Football Cup 2025', 'date': 'Starts June 1'},
-      {'title': 'Pickleball Masters', 'date': 'Starts May 20'},
+      {
+        'title': 'Cricket Premier League',
+        'date': 'Starts May 10',
+        'image':
+            'https://images.unsplash.com/photo-1597773151122-c3473f88033f' // Replace with better asset/image if needed
+      },
+      {
+        'title': 'Football Cup 2025',
+        'date': 'Starts June 1',
+        'image': 'https://images.unsplash.com/photo-1549924231-f129b911e442'
+      },
+      {
+        'title': 'Pickleball Masters',
+        'date': 'Starts May 20',
+        'image': 'https://images.unsplash.com/photo-1666802069460-f8350592bb96'
+      },
     ];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cricheroes'),
+        backgroundColor: Colors.blueAccent,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -120,15 +135,20 @@ class HomePage extends StatelessWidget {
           children: [
             _sectionTitle("Upcoming Tournaments"),
             SizedBox(
-              height: 180,
+              height: 230,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                reverse: true, // Enables leftward scrolling
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: tournaments.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final item = tournaments[index];
-                  return _buildTournamentCard(item['title']!, item['date']!);
+                  return _buildTournamentCard(
+                    item['title']!,
+                    item['date']!,
+                    item['image']!,
+                  );
                 },
               ),
             ),
@@ -147,20 +167,25 @@ class HomePage extends StatelessWidget {
               child: Column(
                 children: [
                   _FeatureItem(
-                      icon: Icons.sports_cricket,
-                      text: "Create and manage multi-sport tournaments"),
+                    icon: Icons.sports_cricket,
+                    text: "Create and manage multi-sport tournaments",
+                  ),
                   _FeatureItem(
-                      icon: Icons.people,
-                      text: "Register teams and players with full profiles"),
+                    icon: Icons.people,
+                    text: "Register teams and players with full profiles",
+                  ),
                   _FeatureItem(
-                      icon: Icons.gavel,
-                      text: "Conduct live or offline auctions"),
+                    icon: Icons.gavel,
+                    text: "Conduct live or offline auctions",
+                  ),
                   _FeatureItem(
-                      icon: Icons.schedule,
-                      text: "Auto-generate match fixtures and stats"),
+                    icon: Icons.schedule,
+                    text: "Auto-generate match fixtures and stats",
+                  ),
                   _FeatureItem(
-                      icon: Icons.analytics,
-                      text: "Track performance and analyze player data"),
+                    icon: Icons.analytics,
+                    text: "Track performance and analyze player data",
+                  ),
                 ],
               ),
             ),
@@ -224,30 +249,45 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildTournamentCard(String title, String date) {
+  Widget _buildTournamentCard(String title, String date, String imageUrl) {
     return SizedBox(
-      width: 250,
+      width: 270,
       child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.lightBlue.shade50,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.emoji_events, size: 40, color: Colors.orange),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.network(
+              imageUrl,
+              height: 120,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  Container(height: 120, color: Colors.grey.shade300),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    date,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(date, style: const TextStyle(color: Colors.grey)),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
