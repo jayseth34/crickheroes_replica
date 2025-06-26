@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:signalr_netcore/signalr_client.dart'; // Import the SignalR client
+import 'dart:async'; // Required for Future and async operations
+import 'package:http/http.dart' as http; // Import for HTTP requests
+import 'dart:convert'; // For JSON encoding/decoding
 
 void main() {
   runApp(const MyApp());
@@ -14,23 +18,32 @@ class MyApp extends StatelessWidget {
       title: 'Cricket Scorer',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors
+            .lightBlue, // Primary color for the app bar and general theme (softer blue)
         visualDensity: VisualDensity.adaptivePlatformDensity,
         fontFamily: 'Inter', // Assuming 'Inter' font is available or a fallback
       ),
-      home: const MatchDetailPage(match: {
-        'match': 'T20 Match',
-        'teamA': 'Team India',
-        'teamB': 'Team South Africa',
-      }), // Pass dummy match data
+      home: const MatchDetailPage(
+        match: {
+          'matchId': 1, // Using integer ID for backend API compatibility
+          'teamAId': 1, // Example team ID for Team India
+          'teamBId': 2, // Example team ID for Team South Africa
+          'match': 'T20 Match',
+          'teamA': 'Team India',
+          'teamB': 'Team South Africa',
+        },
+        matchId: 1,
+      ), // Pass dummy match data
     );
   }
 }
 
 class MatchDetailPage extends StatefulWidget {
   final Map<String, dynamic> match;
+  final int matchId;
 
-  const MatchDetailPage({super.key, required this.match});
+  const MatchDetailPage(
+      {super.key, required this.match, required this.matchId});
 
   @override
   State<MatchDetailPage> createState() => _MatchDetailPageState();
@@ -41,14 +54,23 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   late TabController _mainTabController;
   late TabController _scorecardTeamTabController;
 
+  // SignalR Hub Connection instance
+  late HubConnection _hubConnection;
+
+  // API Base URL
+  final String _apiBaseUrl = "https://sportsdecor.somee.com/api/Score";
+
   // Live match data
-  int _currentRuns = 0;
-  int _currentWickets = 0;
-  double _currentOvers = 0.0; // Format as X.Y where Y is balls
-  int _ballsInCurrentOver = 0;
-  int _extras = 0;
+  int _currentRuns = 0; // Total runs for the current innings
+  int _currentWickets = 0; // Total wickets for the current innings
+  int _ballsInCurrentOver =
+      0; // Balls bowled in the current over (0-5 for display)
+  int _totalLegalBallsBowledInInnings =
+      0; // Total legal balls bowled in the current innings
+  int _extras =
+      0; // Total extras for the current innings (Wide, No Ball penalty only now)
   int _partnershipRuns = 0;
-  int _partnershipBalls = 0;
+  int _partnershipBalls = 0; // Balls faced in the current partnership
 
   // Innings tracking
   bool _isFirstInnings = true;
@@ -60,6 +82,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   String? _selectedFirstBattingTeamName;
   String _currentBattingTeamName = '';
   String _currentBowlingTeamName = '';
+  int _currentBattingTeamId = 0; // Team ID for API calls
+  int _currentBowlingTeamId = 0; // Team ID for API calls
 
   // Player Data - These will hold the live stats for the current match
   List<Map<String, dynamic>> _teamABattingStats = [];
@@ -73,22 +97,45 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   List<Map<String, dynamic>> _ballEvents = [];
 
   // Current active players
+  // Ensure these indices are always valid. Initialize to -1 or a safe default
+  // until actual players are selected. For this example, assuming valid initial players.
   int _activeBatsman1Index = 0; // The striker
   int _activeBatsman2Index = 1; // The non-striker
   int _activeBowlerIndex = 0; // Index in the *current* bowling team's list
-
-  // For Undo functionality: Store the state before the last action
-  Map<String, dynamic>? _lastGameStateSnapshot;
 
   @override
   void initState() {
     super.initState();
 
-    // Only 'Scoring', 'Scorecard', and 'Balls' tabs remain as requested
-    _mainTabController = TabController(length: 3, vsync: this);
+    _mainTabController = TabController(length: 2, vsync: this);
     _scorecardTeamTabController = TabController(length: 2, vsync: this);
 
-    _teamABattingStats = [
+    // Initialize player data. This would typically come from an API or database.
+    // For this example, it's hardcoded.
+    _teamABattingStats = _initializeBattingStats();
+    _teamBBattingStats = _initializeBattingStatsB(); // Separate for Team B
+    _teamABowlingStats = _initializeBowlingStats();
+    _teamBBowlingStats = _initializeBowlingStatsB(); // Separate for Team B
+
+    // Initialize SignalR connection.
+    _hubConnection = HubConnectionBuilder()
+        .withUrl(
+            "https://sportsdecor.somee.com/scoreHub") // Use localhost for local API
+        .build();
+
+    // Start SignalR connection and listen for updates
+    _startSignalR();
+
+    // Perform initial setup like batting team selection after the first frame
+    // to ensure `context` is available.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialSetup();
+    });
+  }
+
+  // Helper function to initialize batting stats for Team A
+  List<Map<String, dynamic>> _initializeBattingStats() {
+    return [
       {
         'name': 'Virat Kohli',
         'runs': 0,
@@ -189,58 +236,11 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         'dismissal': 'not out'
       },
     ];
-    _teamBBowlingStats = [
-      {
-        'name': 'Kagiso Rabada',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-      {
-        'name': 'Anrich Nortje',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-      {
-        'name': 'Keshav Maharaj',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-      {
-        'name': 'Marco Jansen',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-      {
-        'name': 'Tabraiz Shamsi',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-      {
-        'name': 'Gerald Coetzee',
-        'overs': 0.0,
-        'maidens': 0,
-        'runs': 0,
-        'wickets': 0,
-        'economy': 0.0
-      },
-    ];
+  }
 
-    _teamBBattingStats = [
+  // Helper function to initialize batting stats for Team B
+  List<Map<String, dynamic>> _initializeBattingStatsB() {
+    return [
       {
         'name': 'Quinton de Kock',
         'runs': 0,
@@ -341,11 +341,15 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         'dismissal': 'not out'
       },
     ];
+  }
 
-    _teamABowlingStats = [
+  // Helper function to initialize bowling stats for Team A
+  List<Map<String, dynamic>> _initializeBowlingStats() {
+    return [
       {
         'name': 'Jasprit Bumrah',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
@@ -354,6 +358,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       {
         'name': 'Hardik Pandya',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
@@ -362,6 +367,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       {
         'name': 'Axar Patel',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
@@ -370,6 +376,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       {
         'name': 'Mohammed Siraj',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
@@ -378,6 +385,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       {
         'name': 'Kuldeep Yadav',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
@@ -386,83 +394,282 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       {
         'name': 'Arshdeep Singh',
         'overs': 0.0,
+        'total_legal_balls_bowled': 0,
         'maidens': 0,
         'runs': 0,
         'wickets': 0,
         'economy': 0.0
       },
     ];
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initialSetup();
+  // Helper function to initialize bowling stats for Team B
+  List<Map<String, dynamic>> _initializeBowlingStatsB() {
+    return [
+      {
+        'name': 'Kagiso Rabada',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+      {
+        'name': 'Anrich Nortje',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+      {
+        'name': 'Keshav Maharaj',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+      {
+        'name': 'Marco Jansen',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+      {
+        'name': 'Tabraiz Shamsi',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+      {
+        'name': 'Gerald Coetzee',
+        'overs': 0.0,
+        'total_legal_balls_bowled': 0,
+        'maidens': 0,
+        'runs': 0,
+        'wickets': 0,
+        'economy': 0.0
+      },
+    ];
+  }
+
+  // Method to start the SignalR connection and set up listeners
+  Future<void> _startSignalR() async {
+    try {
+      if (_hubConnection.state != HubConnectionState.Connected) {
+        await _hubConnection.start();
+        debugPrint("Connected to SignalR hub");
+      }
+
+      // Ensure matchId is always an int
+      final int matchId = widget.matchId as int? ?? 0;
+      print(matchId);
+      if (matchId == 0) {
+        debugPrint("Error: matchId is not valid for SignalR group.");
+        return;
+      }
+
+      // Join match group
+      await _hubConnection.invoke("JoinMatchGroup",
+          args: [matchId.toString()]); // SignalR might expect string ID
+      debugPrint("Joined match group: $matchId");
+
+      // Listen to score updates
+      _hubConnection.on("ReceiveScoreUpdate", (data) {
+        debugPrint("SignalR Score Update: ${data.toString()}");
+        if (data != null && data.isNotEmpty) {
+          final Map<String, dynamic> scoreData =
+              data[0] as Map<String, dynamic>;
+          // Only update if the update is for the currently tracked batting team
+          // This prevents conflicts if multiple clients are scoring different innings
+          if (scoreData['teamId'] == _currentBattingTeamId) {
+            _updateLiveScoreFromSignalR(scoreData);
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint("Error connecting to SignalR or joining group: $e");
+      // Optionally show a user-friendly message or retry connection
+    }
+  }
+
+  // Method to update UI state based on received SignalR score data
+  // This assumes the SignalR data structure is similar to the GET /getScore response.
+  void _updateLiveScoreFromSignalR(Map<String, dynamic> scoreData) {
+    setState(() {
+      _currentRuns = scoreData['runs'] ?? _currentRuns;
+      _currentWickets = scoreData['wickets'] ?? _currentWickets;
+
+      // The `overs` from SignalR is likely completed overs (like the GET API).
+      // We need to re-calculate _totalLegalBallsBowledInInnings to match.
+      int receivedOvers = scoreData['overs'] ?? 0;
+      // If the backend also sends a 'ballsInCurrentOver' from 1-6, use it.
+      // Otherwise, we can only update to the start of the next over.
+      // Assuming 'balls' is not sent via GET/SignalR and needs to be handled carefully.
+      // For now, let's assume 'overs' from SignalR means full overs, so we snap to that.
+      _totalLegalBallsBowledInInnings = receivedOvers * 6;
+      _ballsInCurrentOver = 0; // Reset as we snapped to completed overs.
+
+      // These might not be sent by the backend's `getScore` or `update`
+      // For a truly real-time score, the backend should send the full state.
+      // We will leave them as is for now, or you can request your backend to send them.
+      // _extras = scoreData['extras'] ?? _extras;
+      // _partnershipRuns = scoreData['partnershipRuns'] ?? _partnershipRuns;
+      // _partnershipBalls = scoreData['partnershipBalls'] ?? _partnershipBalls;
+
+      debugPrint(
+          "UI updated from SignalR: $_currentRuns/$_currentWickets in ${receivedOvers} overs");
     });
+  }
+
+  // Function to send score update to backend
+  Future<void> _updateScoreOnBackend({
+    required String eventType,
+    bool isMatchOver = false,
+  }) async {
+    final int matchId = widget.matchId as int? ?? 0;
+    final int teamId = _currentBattingTeamId;
+
+    // Calculate overs and balls for the API
+    // The API wants 'overs' as completed overs (int) and 'balls' as the ball number in the current over (1-6).
+    int apiOvers = _totalLegalBallsBowledInInnings ~/ 6;
+    int apiBalls = _totalLegalBallsBowledInInnings % 6;
+
+    // If apiBalls is 0 and we have bowled some balls, it means the 6th ball of the current over just completed.
+    if (apiBalls == 0 && _totalLegalBallsBowledInInnings > 0) {
+      apiBalls = 6;
+      // apiOvers is already correct because integer division `~/ 6` will give the completed over count.
+      // E.g., 6 balls -> apiOvers=1, apiBalls=0 -> (apiOvers=1, apiBalls=6)
+      // E.g., 12 balls -> apiOvers=2, apiBalls=0 -> (apiOvers=2, apiBalls=6)
+    }
+
+    final Map<String, dynamic> data = {
+      "matchId": matchId,
+      "teamId": teamId,
+      "runs": _currentRuns,
+      "wickets": _currentWickets,
+      "overs": apiOvers,
+      "eventType": eventType,
+      "balls": apiBalls,
+      "isMatchOver": isMatchOver,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl/update'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*', // As per curl command
+        },
+        body: json.encode(data),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Score updated successfully: ${response.body}');
+      } else {
+        debugPrint(
+            'Failed to update score. Status code: ${response.statusCode}, Body: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error updating score: $e');
+    }
+  }
+
+  // Function to fetch score from backend
+  Future<void> _fetchScoreFromBackend() async {
+    final int matchId = widget.matchId as int? ?? 0;
+    print("Match id: " + widget.matchId.toString());
+    final int teamId =
+        _currentBattingTeamId; // Fetch score for the current batting team
+
+    if (matchId == 0 || teamId == 0) {
+      debugPrint("Cannot fetch score: Match ID or Team ID is invalid.");
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/getScore?MatchId=$matchId&TeamId=$teamId'),
+        headers: {
+          'Accept': '*/*', // As per curl command
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> scoreData = json.decode(response.body);
+        setState(() {
+          _currentRuns = scoreData['runs'] ?? 0;
+          _currentWickets = scoreData['wickets'] ?? 0;
+          // Assuming 'overs' from GET means completed overs, so we re-calculate total balls.
+          _totalLegalBallsBowledInInnings = (scoreData['overs'] ?? 0) * 6;
+          _ballsInCurrentOver =
+              0; // Reset for consistency after fetching completed overs
+          // Note: 'eventType', 'timestamp', 'fromCache' from backend are not used to update UI state directly,
+          // as they are typically event-specific or metadata.
+          debugPrint(
+              'Score fetched successfully: $_currentRuns/$_currentWickets at ${_currentOversDisplay.toStringAsFixed(1)} overs');
+        });
+      } else {
+        debugPrint(
+            'Failed to fetch score. Status code: ${response.statusCode}, Body: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching score: $e');
+    }
   }
 
   @override
   void dispose() {
+    _hubConnection
+        .stop(); // Stop SignalR connection when the widget is disposed
     _mainTabController.dispose();
     _scorecardTeamTabController.dispose();
     super.dispose();
   }
 
-  // --- Helper for taking snapshots for Undo ---
-  Map<String, dynamic> _createGameStateSnapshot() {
-    return {
-      'currentRuns': _currentRuns,
-      'currentWickets': _currentWickets,
-      'currentOvers': _currentOvers,
-      'ballsInCurrentOver': _ballsInCurrentOver,
-      'extras': _extras,
-      'partnershipRuns': _partnershipRuns,
-      'partnershipBalls': _partnershipBalls,
-      'activeBatsman1Index': _activeBatsman1Index,
-      'activeBatsman2Index': _activeBatsman2Index,
-      'activeBowlerIndex': _activeBowlerIndex,
-      // Deep copy lists to ensure independent state
-      'teamABattingStats': _teamABattingStats.map((e) => Map.from(e)).toList(),
-      'teamABowlingStats': _teamABowlingStats.map((e) => Map.from(e)).toList(),
-      'teamBBattingStats': _teamBBattingStats.map((e) => Map.from(e)).toList(),
-      'teamBBowlingStats': _teamBBowlingStats.map((e) => Map.from(e)).toList(),
-      'overByOverSummary': _overByOverSummary.map((e) => Map.from(e)).toList(),
-      'ballEvents': _ballEvents.map((e) => Map.from(e)).toList(),
-    };
-  }
-
-  void _restoreGameStateFromSnapshot(Map<String, dynamic> snapshot) {
-    setState(() {
-      _currentRuns = snapshot['currentRuns'];
-      _currentWickets = snapshot['currentWickets'];
-      _currentOvers = snapshot['currentOvers'];
-      _ballsInCurrentOver = snapshot['ballsInCurrentOver'];
-      _extras = snapshot['extras'];
-      _partnershipRuns = snapshot['partnershipRuns'];
-      _partnershipBalls = snapshot['partnershipBalls'];
-      _activeBatsman1Index = snapshot['activeBatsman1Index'];
-      _activeBatsman2Index = snapshot['activeBatsman2Index'];
-      _activeBowlerIndex = snapshot['activeBowlerIndex'];
-      _teamABattingStats = snapshot['teamABattingStats'];
-      _teamABowlingStats = snapshot['teamABowlingStats'];
-      _teamBBattingStats = snapshot['teamBBattingStats'];
-      _teamBBowlingStats = snapshot['teamBBowlingStats'];
-      _overByOverSummary = snapshot['overByOverSummary'];
-      _ballEvents = snapshot['ballEvents'];
-    });
+  // Getter to display overs in X.Y format (e.g., 2.3 for 2 overs and 3 balls)
+  double get _currentOversDisplay {
+    return _totalLegalBallsBowledInInnings.floor() ~/ 6 +
+        (_totalLegalBallsBowledInInnings % 6) / 10.0;
   }
 
   Future<void> _initialSetup() async {
     String? battingTeamChoice = await _showBattingTeamSelectionDialog();
     if (battingTeamChoice == null) {
-      battingTeamChoice = widget.match['teamA'] ?? 'Team A';
+      // If user cancels, default to Team A batting first
+      battingTeamChoice = widget.match['teamA']?.toString() ?? 'Team A';
     }
 
     setState(() {
       _selectedFirstBattingTeamName = battingTeamChoice;
       _currentBattingTeamName = _selectedFirstBattingTeamName!;
       _currentBowlingTeamName =
-          (battingTeamChoice == (widget.match['teamA'] ?? 'Team A'))
-              ? (widget.match['teamB'] ?? 'Team B')
-              : (widget.match['teamA'] ?? 'Team A');
+          (battingTeamChoice == (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? (widget.match['teamB']?.toString() ?? 'Team B')
+              : (widget.match['teamA']?.toString() ?? 'Team A');
+
+      _currentBattingTeamId =
+          (battingTeamChoice == (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? (widget.match['teamAId'] as int? ?? 0)
+              : (widget.match['teamBId'] as int? ?? 0);
+      _currentBowlingTeamId =
+          (battingTeamChoice == (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? (widget.match['teamBId'] as int? ?? 0)
+              : (widget.match['teamAId'] as int? ?? 0);
     });
+
+    // Fetch initial score from backend after setting team IDs
+    await _fetchScoreFromBackend();
 
     _selectInitialPlayers();
   }
@@ -478,14 +685,14 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                title: Text(widget.match['teamA'] ?? 'Team A'),
+                title: Text(widget.match['teamA']?.toString() ?? 'Team A'),
                 onTap: () => Navigator.of(dialogContext)
-                    .pop(widget.match['teamA'] ?? 'Team A'),
+                    .pop(widget.match['teamA']?.toString() ?? 'Team A'),
               ),
               ListTile(
-                title: Text(widget.match['teamB'] ?? 'Team B'),
+                title: Text(widget.match['teamB']?.toString() ?? 'Team B'),
                 onTap: () => Navigator.of(dialogContext)
-                    .pop(widget.match['teamB'] ?? 'Team B'),
+                    .pop(widget.match['teamB']?.toString() ?? 'Team B'),
               ),
             ],
           ),
@@ -517,6 +724,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               if (excludedIndices.contains(entry.key)) {
                 return false;
               }
+              // For batsmen, only show players who are 'not out'
               if (isBatsman && entry.value['dismissal'] != 'not out') {
                 return false;
               }
@@ -549,7 +757,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                 final int playerIndex = item['index'];
                 final Map<String, dynamic> player = item['player'];
                 return ListTile(
-                  title: Text(player['name']),
+                  title: Text(player['name']?.toString() ?? 'Unknown Player'),
                   onTap: () {
                     Navigator.of(context).pop(playerIndex);
                   },
@@ -572,25 +780,28 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
   Future<void> _selectInitialPlayers() async {
     final List<Map<String, dynamic>> currentBattingTeam =
-        (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBattingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABattingStats
             : _teamBBattingStats;
 
+    // Select active batsman 1 (striker)
     int? batsman1Index = await _showPlayerSelectionDialog(
-      title: 'Select On-Strike Batsman for ${_currentBattingTeamName}',
+      title: 'Select On-Strike Batsman for $_currentBattingTeamName',
       players: currentBattingTeam,
       excludedIndices: [],
       isBatsman: true,
     );
-    if (batsman1Index == null) return;
+    if (batsman1Index == null) return; // User cancelled
 
+    // Select active batsman 2 (non-striker)
     int? batsman2Index = await _showPlayerSelectionDialog(
-      title: 'Select Non-Strike Batsman for ${_currentBattingTeamName}',
+      title: 'Select Non-Strike Batsman for $_currentBattingTeamName',
       players: currentBattingTeam,
-      excludedIndices: [batsman1Index],
+      excludedIndices: [batsman1Index], // Exclude the striker
       isBatsman: true,
     );
-    if (batsman2Index == null) return;
+    if (batsman2Index == null) return; // User cancelled
 
     setState(() {
       _activeBatsman1Index = batsman1Index;
@@ -598,273 +809,332 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     });
 
     final List<Map<String, dynamic>> currentBowlingTeam =
-        (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBowlingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABowlingStats
             : _teamBBowlingStats;
 
+    // Select active bowler
     int? bowlerIndex = await _showPlayerSelectionDialog(
-      title: 'Select Bowler for ${_currentBowlingTeamName}',
+      title: 'Select Bowler for $_currentBowlingTeamName',
       players: currentBowlingTeam,
       excludedIndices: [],
       isBatsman: false,
     );
-    if (bowlerIndex == null) return;
+    if (bowlerIndex == null) return; // User cancelled
 
     setState(() {
       _activeBowlerIndex = bowlerIndex;
     });
   }
 
-  // This function increments ball count for overs and partnership
-  void _incrementBallAndOverStats() {
+  // This method increments the ball count and updates overs. It's called for every legal delivery.
+  void _processLegalBall({String eventType = 'Dot'}) {
     setState(() {
       _ballsInCurrentOver++;
-      _updateOvers();
+      _totalLegalBallsBowledInInnings++;
       _partnershipBalls++;
+
+      final List<Map<String, dynamic>> currentBowlingTeam =
+          (_currentBowlingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? _teamABowlingStats
+              : _teamBBowlingStats;
+      // Increment bowler's legal balls bowled
+      if (_activeBowlerIndex >= 0 &&
+          _activeBowlerIndex < currentBowlingTeam.length) {
+        currentBowlingTeam[_activeBowlerIndex]['total_legal_balls_bowled']++;
+        _updateBowlerOversDisplay(currentBowlingTeam[_activeBowlerIndex]);
+      }
+
+      // Check for end of over
+      if (_ballsInCurrentOver == 6) {
+        _ballsInCurrentOver = 0; // Reset balls in current over
+        _overByOverSummary.add({
+          'over': (_totalLegalBallsBowledInInnings ~/ 6),
+          'runs': _currentRuns,
+          'wickets': _currentWickets,
+        });
+
+        _changeBowler(); // Prompt for new bowler
+        _swapStrike(); // Strike changes automatically at the end of an over
+      }
+
+      _checkWinCondition();
     });
+    _updateScoreOnBackend(eventType: eventType);
   }
 
+  // Updates bowler's overs display (e.g., 2.3)
+  void _updateBowlerOversDisplay(Map<String, dynamic> bowler) {
+    int legalBalls = bowler['total_legal_balls_bowled'];
+    bowler['overs'] =
+        (legalBalls ~/ 6) + (legalBalls % 6) / 10.0; // Correct X.Y format
+  }
+
+  // Records a ball event for display in the commentary/all balls summary.
   void _recordBallEvent({
     required int batsmanRuns,
-    required int extraRuns,
+    required int
+        extraRuns, // extraRuns here means runs counted towards _extras (Wide penalty etc.)
     String? extraType,
     required bool wicketTaken,
     Map<String, dynamic>? wicketDetails,
+    int? totalRunsOnBall, // The total runs (batsman + extra) for this ball
   }) {
     setState(() {
       final List<Map<String, dynamic>> currentBattingTeamPlayers =
-          (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+          (_currentBattingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
               ? _teamABattingStats
               : _teamBBattingStats;
       final List<Map<String, dynamic>> currentBowlingTeamPlayers =
-          (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
+          (_currentBowlingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
               ? _teamABowlingStats
               : _teamBBowlingStats;
 
-      // Determine the batsman name for the ball event
-      String batsmanName;
-      if (wicketTaken &&
-          wicketDetails?['type'] == 'Run Out' &&
-          wicketDetails?['run_out_batsman_index'] != null) {
-        batsmanName =
-            currentBattingTeamPlayers[wicketDetails!['run_out_batsman_index']]
-                    ['name'] ??
-                'N/A';
-      } else if (wicketTaken) {
-        batsmanName =
-            currentBattingTeamPlayers[_activeBatsman1Index]['name'] ?? 'N/A';
-      } else if (extraType != null &&
-          (extraType == 'Wide' || extraType == 'No Ball')) {
-        batsmanName = 'Extras';
+      // Determine batsman name for the event. If a wicket, it's the out batsman.
+      // If runs are extras only (like pure wide/no ball without bat contact), it's "Extras".
+      // Otherwise, it's the striker.
+      String batsmanNameForEvent = '';
+      if (wicketTaken) {
+        batsmanNameForEvent = currentBattingTeamPlayers[_activeBatsman1Index]
+                    ['name']
+                ?.toString() ??
+            'N/A';
+      } else if (extraRuns > 0 && batsmanRuns == 0) {
+        // This is for Wide/No Ball penalty where no bat contact
+        batsmanNameForEvent = 'Extras';
       } else {
-        batsmanName =
-            currentBattingTeamPlayers[_activeBatsman1Index]['name'] ?? 'N/A';
+        batsmanNameForEvent = currentBattingTeamPlayers[_activeBatsman1Index]
+                    ['name']
+                ?.toString() ??
+            'N/A';
       }
 
       _ballEvents.add({
-        'over_display':
-            '${_currentOvers.floor()}.${_ballsInCurrentOver == 0 ? 6 : _ballsInCurrentOver}',
+        'over_display': _currentOversDisplay, // Use the getter for display
+        'ball_in_over': _ballsInCurrentOver == 0
+            ? 6
+            : _ballsInCurrentOver, // Display 6 for end of over
         'batsman_runs': batsmanRuns,
-        'extra_runs': extraRuns,
+        'extra_runs':
+            extraRuns, // Only the 'penalty' part of extras that count towards _extras
         'extra_type': extraType,
         'wicket_taken': wicketTaken,
         'wicket_details': wicketDetails,
         'dismissal': wicketDetails?['full_dismissal_text'],
-        'batsman_name': batsmanName,
+        'batsman_name': batsmanNameForEvent,
         'bowler_name':
-            currentBowlingTeamPlayers[_activeBowlerIndex]['name'] ?? 'N/A',
+            currentBowlingTeamPlayers[_activeBowlerIndex]['name']?.toString() ??
+                'N/A',
         'total_score_after_ball':
-            '$_currentRuns-${_currentWickets} (${_currentOvers.toStringAsFixed(1)})',
+            '$_currentRuns-${_currentWickets} (${_currentOversDisplay.toStringAsFixed(1)})',
+        'total_runs_on_ball': totalRunsOnBall ?? (batsmanRuns + extraRuns),
       });
     });
   }
 
-  void _addRunsToScore({
-    required int totalRunsAdded,
-    int batsmanRuns = 0,
-    bool isExtra = false,
-    String? extraType, // 'Wide', 'No Ball', 'Bye', 'Leg Bye'
-    bool isBoundary = false,
-    bool isSix = false,
-  }) {
-    // Capture state before changes for undo
-    _lastGameStateSnapshot = _createGameStateSnapshot();
-
+  // Adds runs to the score, updates player stats, and handles strike rotation.
+  // totalRuns is the total increase in score for this ball.
+  // batsmanRuns is specifically runs off the bat OR runs credited to batsman for byes/legbyes/no-balls.
+  // extraRuns is specifically the 'extra' component that is added to _extras (e.g., 1 for wide penalty).
+  void _addRuns(int totalRuns,
+      {required int batsmanRuns,
+      required int extraRuns, // This is for the _extras counter
+      bool isBoundary = false,
+      String? extraType,
+      required String eventType}) {
     setState(() {
-      _currentRuns += totalRunsAdded;
-      _partnershipRuns += totalRunsAdded;
+      _currentRuns += totalRuns;
+      _extras += extraRuns; // Only add the 'extra' component to total extras
 
-      // Update batsman stats for runs off bat
+      final List<Map<String, dynamic>> currentBattingTeam =
+          (_currentBattingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? _teamABattingStats
+              : _teamBBattingStats;
+      final List<Map<String, dynamic>> currentBowlingTeam =
+          (_currentBowlingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? _teamABowlingStats
+              : _teamBBowlingStats;
+
+      // Update Batsman Stats
+      // batsmanRuns > 0 implies runs credited to the batsman for this ball
       if (batsmanRuns > 0) {
-        final List<Map<String, dynamic>> currentBattingTeam =
-            (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
-                ? _teamABattingStats
-                : _teamBBattingStats;
         final int activeBatsmanIndex = _activeBatsman1Index;
-        if (activeBatsmanIndex < currentBattingTeam.length) {
+        if (activeBatsmanIndex >= 0 &&
+            activeBatsmanIndex < currentBattingTeam.length) {
           currentBattingTeam[activeBatsmanIndex]['runs'] += batsmanRuns;
-          // Balls faced for batsman are now incremented in button handlers BEFORE strike swap.
+          // Balls faced for batsman are now incremented consistently in each button's onPressed or handler function.
           if (isBoundary) {
-            if (batsmanRuns == 4)
+            if (batsmanRuns == 4) {
               currentBattingTeam[activeBatsmanIndex]['fours'] += 1;
-            if (batsmanRuns == 6)
+            } else if (batsmanRuns == 6) {
               currentBattingTeam[activeBatsmanIndex]['sixes'] += 1;
+            }
           }
           _updateStrikeRate(currentBattingTeam[activeBatsmanIndex]);
         }
       }
 
-      // Update extras count
-      if (isExtra) {
-        _extras += totalRunsAdded;
-      }
-
-      // Update bowler stats (runs conceded)
-      final List<Map<String, dynamic>> currentBowlingTeam =
-          (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
-              ? _teamABowlingStats
-              : _teamBBowlingStats;
-      if (_activeBowlerIndex < currentBowlingTeam.length) {
-        // Bowler runs are NOT updated for Byes and Leg Byes.
+      // Update Bowler Stats (always charged for runs conceded, including extras)
+      if (_activeBowlerIndex >= 0 &&
+          _activeBowlerIndex < currentBowlingTeam.length) {
         if (extraType != 'Bye' && extraType != 'Leg Bye') {
-          currentBowlingTeam[_activeBowlerIndex]['runs'] += totalRunsAdded;
+          currentBowlingTeam[_activeBowlerIndex]['runs'] +=
+              totalRuns; // Bowler concedes all runs
         }
+
         _updateEconomyRate(currentBowlingTeam[_activeBowlerIndex]);
       }
-      // Strike rotation logic is now handled explicitly in button callbacks after ball processing.
+
+      // Partnership updates
+      _partnershipRuns +=
+          totalRuns; // Partnership grows by all runs on the ball
+      // Partnership balls handled by _processLegalBall (for legal deliveries) or other handlers.
+      print(totalRuns);
+      // Strike rotation logic
+      // Strike rotates after odd runs if they are from the bat, byes, leg-byes, or overthrows
+      // For No Balls and Wides, the strike does NOT rotate unless the batsmen run an odd number of runs
+      // after the initial penalty.
+      if (totalRuns % 2 != 0 && extraType != 'Wide' && extraType != 'No Ball') {
+        // Legal delivery (including Byes/Leg Byes which are now like normal runs for strike rotation)
+        _swapStrike();
+      } else if (extraType == 'No Ball' && totalRuns % 2 != 0) {
+        // No-ball where total runs (including penalty) are odd
+        _swapStrike();
+      } else if (extraType == 'Wide' && totalRuns % 2 == 0) {
+        // Wide where total runs (including penalty) are odd (e.g., wide + 1 bye)
+        _swapStrike();
+      }
+      // Note: Overthrows can cause strike change if they result in an odd number of total runs
+      // on the ball. Since Overthrow sets extraType: 'Overthrow', the first condition
+      // `totalRuns % 2 != 0 && extraType != 'Wide' && extraType != 'No Ball'` would apply.
+
+      _checkWinCondition();
     });
+    _updateScoreOnBackend(eventType: eventType);
   }
 
-  void _addWicket() async {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
+  // Handles a wicket event, updating scores, player stats, and initiating new batsman selection.
+  Future<void> _addWicket() async {
     final List<Map<String, dynamic>> currentBattingTeam =
-        (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBattingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABattingStats
             : _teamBBattingStats;
     final List<Map<String, dynamic>> currentBowlingTeam =
-        (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBowlingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABowlingStats
             : _teamBBowlingStats;
 
-    final List<Map<String, dynamic>> allOpponentPlayersForFielding =
-        (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
-            ? [..._teamBBattingStats, ..._teamBBowlingStats]
-            : [..._teamABattingStats, ..._teamABowlingStats];
-
     Map<String, dynamic>? dismissalDetails = await _showWicketTypeDialog(
-      batsmanName: currentBattingTeam[_activeBatsman1Index]['name'],
-      bowlerName: currentBowlingTeam[_activeBowlerIndex]['name'],
+      batsmanName:
+          currentBattingTeam[_activeBatsman1Index]['name']?.toString() ?? 'N/A',
+      bowlerName:
+          currentBowlingTeam[_activeBowlerIndex]['name']?.toString() ?? 'N/A',
       teamBattingStats: currentBattingTeam,
-      allOpponentPlayersForFielding: allOpponentPlayersForFielding,
+      opponentTeamPlayers: currentBowlingTeam, // Pass opponent team players
     );
 
     if (dismissalDetails == null) {
-      _restoreGameStateFromSnapshot(_lastGameStateSnapshot!);
-      _lastGameStateSnapshot = null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wicket action cancelled.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
+      return; // User cancelled wicket selection
     }
 
-    int runsCompletedOnRunOut = 0;
+    int runsBeforeRunOut = 0;
     if (dismissalDetails['type'] == 'Run Out') {
-      int? r = await showDialog<int>(
-        // Use direct showDialog for runs on run out
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext dialogContext) {
-          return AlertDialog(
-            title: const Text('Runs Completed Before Run Out'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                  7, // Options for 0 to 6 runs
-                  (index) => ListTile(
-                        title: Text('$index run${index != 1 ? 's' : ''}'),
-                        onTap: () => Navigator.of(dialogContext).pop(index),
-                      )),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(null),
-                child: const Text('Cancel'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (r == null) {
-        _restoreGameStateFromSnapshot(_lastGameStateSnapshot!);
-        _lastGameStateSnapshot = null;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Run Out cancelled.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-      runsCompletedOnRunOut = r;
-
-      setState(() {
-        _currentRuns += runsCompletedOnRunOut;
-        _partnershipRuns += runsCompletedOnRunOut;
-
-        // Credit runs to the batsman who was on strike BEFORE any potential strike swap for these runs
-        final int batsmanToCreditRunsIndex = _activeBatsman1Index;
-        if (batsmanToCreditRunsIndex < currentBattingTeam.length) {
-          currentBattingTeam[batsmanToCreditRunsIndex]['runs'] +=
-              runsCompletedOnRunOut;
-          _updateStrikeRate(currentBattingTeam[batsmanToCreditRunsIndex]);
-        }
-        // Apply the strike rotation for the completed runs before the wicket.
-        // This effectively changes who would be on strike for the *next* ball had the wicket not fallen.
-        if (runsCompletedOnRunOut % 2 != 0) {
-          _swapStrike();
-        }
-      });
+      runsBeforeRunOut = await _showRunOutRunsDialog() ?? 0;
     }
 
     setState(() {
+      // Determine which batsman was actually run out if 'Run Out' type selected.
+      // The _showWicketTypeDialog now returns `run_out_player_index`.
+      int? runOutBatsmanActualIndex = dismissalDetails['run_out_player_index'];
+      if (dismissalDetails['type'] == 'Run Out' &&
+          runOutBatsmanActualIndex != null) {
+        // If the run-out was of the non-striker, swap the active batsman indices
+        // temporarily so that the non-striker is marked out, and then swap back.
+        if (runOutBatsmanActualIndex == _activeBatsman2Index) {
+          int temp = _activeBatsman1Index;
+          _activeBatsman1Index = _activeBatsman2Index;
+          _activeBatsman2Index = temp;
+        }
+      }
+
       _currentWickets++;
-      _partnershipRuns = 0;
-      _partnershipBalls = 0;
+      _partnershipRuns = 0; // Reset partnership on a wicket
+      _partnershipBalls = 0; // Reset partnership balls
 
-      final int dismissedBatsmanIndex = dismissalDetails['type'] == 'Run Out' &&
-              dismissalDetails['run_out_batsman_index'] != null
-          ? dismissalDetails['run_out_batsman_index']
-          : _activeBatsman1Index; // Default to current striker if not a specific run out
+      // Add runs completed before run-out to total score and batsman's score
+      _currentRuns += runsBeforeRunOut;
+      if (runsBeforeRunOut > 0) {
+        if (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeam.length) {
+          currentBattingTeam[_activeBatsman1Index]['runs'] += runsBeforeRunOut;
+        }
+      }
 
-      // Increment balls faced for the dismissed batsman as this delivery resulted in their wicket.
-      currentBattingTeam[dismissedBatsmanIndex]['balls']++;
-      currentBattingTeam[dismissedBatsmanIndex]['dismissal'] =
-          dismissalDetails['full_dismissal_text'];
+      // Increment batsman's ball count for the ball on which they got out
+      if (_activeBatsman1Index >= 0 &&
+          _activeBatsman1Index < currentBattingTeam.length) {
+        currentBattingTeam[_activeBatsman1Index]['balls']++;
+        _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+      }
 
-      _incrementBallAndOverStats(); // A wicket always consumes a ball for the over count
+      if (_activeBatsman1Index >= 0 &&
+          _activeBatsman1Index < currentBattingTeam.length) {
+        currentBattingTeam[_activeBatsman1Index]['dismissal'] =
+            dismissalDetails['full_dismissal_text'];
+      }
+
+      // If odd runs completed before a run-out, strike should swap
+      if (runsBeforeRunOut % 2 != 0 && dismissalDetails['type'] == 'Run Out') {
+        _swapStrike();
+      }
+
+      // Process the ball, only increment ballsInCurrentOver if it's a legal delivery.
+      // Run outs are considered legal deliveries for ball count purposes unless they occur off a wide/no-ball.
+      // Other wickets like bowled, caught also count as a ball.
+      if (dismissalDetails['type'] != 'Wide' &&
+          dismissalDetails['type'] != 'No Ball') {
+        _processLegalBall(
+            eventType:
+                'Wicket'); // Only process legal ball if it's a legal delivery that results in a wicket
+      } else {
+        // If it's a wicket off a wide or no-ball, we still update backend but don't call _processLegalBall
+        // as that increments legal ball count. The ball event will be recorded separately.
+        _updateScoreOnBackend(eventType: 'Wicket');
+      }
+      // Regardless of legal ball or not, bowler still gets runs conceded
+      if (_activeBowlerIndex >= 0 &&
+          _activeBowlerIndex < currentBowlingTeam.length) {
+        currentBowlingTeam[_activeBowlerIndex]['runs'] += runsBeforeRunOut;
+        _updateEconomyRate(currentBowlingTeam[_activeBowlerIndex]);
+      }
 
       if (dismissalDetails['bowler_wicket']) {
-        if (_activeBowlerIndex < currentBowlingTeam.length) {
+        // Bowler gets credit for wicket only if it's a bowler-credited dismissal type
+        if (_activeBowlerIndex >= 0 &&
+            _activeBowlerIndex < currentBowlingTeam.length) {
           currentBowlingTeam[_activeBowlerIndex]['wickets'] += 1;
         }
       }
-      _updateEconomyRate(currentBowlingTeam[_activeBowlerIndex]);
 
       _recordBallEvent(
-        batsmanRuns: runsCompletedOnRunOut, // Record completed runs for run out
-        extraRuns: 0,
+        batsmanRuns: runsBeforeRunOut, // Runs made by batsmen before wicket
+        extraRuns:
+            0, // Wicket event itself typically doesn't have extra runs associated
         extraType: null,
         wicketTaken: true,
         wicketDetails: dismissalDetails,
+        totalRunsOnBall: runsBeforeRunOut, // Total runs for this event
       );
 
-      // Find next available batsman
+      // Find the next available batsman
       int nextBatsmanIndex = -1;
       for (int i = 0; i < currentBattingTeam.length; i++) {
         if (currentBattingTeam[i]['dismissal'] == 'not out' &&
@@ -876,20 +1146,15 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       }
 
       if (nextBatsmanIndex != -1 && _currentWickets < 10) {
-        // Logic to replace the dismissed batsman
-        // If the dismissed batsman was the current striker, the new batsman becomes striker.
-        // If the dismissed batsman was the non-striker, the new batsman becomes non-striker.
-        if (dismissedBatsmanIndex == _activeBatsman1Index) {
-          _activeBatsman1Index = nextBatsmanIndex;
-        } else if (dismissedBatsmanIndex == _activeBatsman2Index) {
-          _activeBatsman2Index = nextBatsmanIndex;
-        } else {
-          // This case should ideally not happen if dismissal is always active batsman
-          // Handle defensively: if somehow another player was dismissed, replace them on the non-strike end.
-          _activeBatsman2Index = nextBatsmanIndex;
-        }
+        // Now, after handling the dismissal, if the previously `_activeBatsman1Index` was the one out,
+        // assign the new batsman to `_activeBatsman1Index`.
+        // If the non-striker was out (via run out), then `_activeBatsman2Index` should be updated.
+        // Since we temporarily swapped to make the run-out batsman the striker, `_activeBatsman1Index`
+        // is indeed the one that needs to be replaced.
+        _activeBatsman1Index = nextBatsmanIndex;
       } else {
-        _endInnings(); // End innings if all wickets fallen or no available batsmen
+        // All out or no more batsmen available
+        _endInnings();
         return;
       }
 
@@ -897,23 +1162,47 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     });
   }
 
+  // Dialog to get runs completed before a run-out
+  Future<int?> _showRunOutRunsDialog() async {
+    return await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Runs Completed Before Run Out'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [0, 1, 2, 3] // Possible runs completed
+                .map((r) => ListTile(
+                      title: Text('$r run${r != 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Dialog to select the type of wicket
   Future<Map<String, dynamic>?> _showWicketTypeDialog({
     required String batsmanName,
     required String bowlerName,
     required List<Map<String, dynamic>> teamBattingStats,
-    required List<Map<String, dynamic>> allOpponentPlayersForFielding,
+    required List<Map<String, dynamic>> opponentTeamPlayers,
   }) async {
     String? selectedWicketType;
     String? caughtFielderName;
-    int? runOutBatsmanIndex; // Changed from runOutPlayerIndex for clarity
+    // Default to striker for run out dialog, but allow selection
+    int? runOutPlayerIndex = _activeBatsman1Index;
     String? runOutDirectThrowerName;
     String? runOutReceiverName;
-
-    final List<String> uniqueOpponentPlayerNames = allOpponentPlayersForFielding
-        .map((player) => player['name'] as String)
-        .toSet()
-        .toList();
-    uniqueOpponentPlayerNames.sort();
 
     return await showDialog<Map<String, dynamic>?>(
       context: context,
@@ -925,7 +1214,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               title: Text('Dismissal for $batsmanName'),
               content: SingleChildScrollView(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min, // Corrected from isScrollable
                   children: [
                     DropdownButtonFormField<String>(
                       value: selectedWicketType,
@@ -937,7 +1226,10 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         'Run Out',
                         'Stumped',
                         'Hit Wicket',
-                        'Obstructing the field'
+                        'Obstructing the field',
+                        'Hit the ball twice', // Added for completeness
+                        'Timed out', // Added for completeness
+                        'Retired Out', // Added for completeness
                       ].map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
@@ -947,21 +1239,27 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                       onChanged: (String? newValue) {
                         setState(() {
                           selectedWicketType = newValue;
+                          // Reset dependent fields when dismissal type changes
                           caughtFielderName = null;
-                          runOutBatsmanIndex = null;
+                          runOutPlayerIndex =
+                              _activeBatsman1Index; // Reset to striker by default
                           runOutDirectThrowerName = null;
                           runOutReceiverName = null;
                         });
                       },
                     ),
-                    if (selectedWicketType == 'Caught') ...[
+                    if (selectedWicketType == 'Caught' ||
+                        selectedWicketType == 'Stumped') ...[
+                      // Fielder/WK for caught/stumped
                       DropdownButtonFormField<String>(
                         value: caughtFielderName,
-                        hint: const Text('Select Fielder (Optional)'),
-                        items: uniqueOpponentPlayerNames.map((name) {
+                        hint: const Text('Select Fielder/WK (Optional)'),
+                        items: opponentTeamPlayers.map((player) {
                           return DropdownMenuItem<String>(
-                            value: name,
-                            child: Text(name),
+                            value:
+                                player['name']?.toString() ?? 'Unknown Fielder',
+                            child: Text(player['name']?.toString() ??
+                                'Unknown Fielder'),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -972,36 +1270,48 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                       ),
                     ],
                     if (selectedWicketType == 'Run Out') ...[
+                      // For run-out, which batsman was out
                       DropdownButtonFormField<int>(
-                        value: runOutBatsmanIndex,
+                        value: runOutPlayerIndex,
                         hint: const Text('Batsman Run Out'),
-                        items: [
-                          DropdownMenuItem<int>(
-                            value: _activeBatsman1Index,
-                            child: Text(teamBattingStats[_activeBatsman1Index]
-                                    ['name'] +
-                                " (Striker)"),
-                          ),
-                          DropdownMenuItem<int>(
-                            value: _activeBatsman2Index,
-                            child: Text(teamBattingStats[_activeBatsman2Index]
-                                    ['name'] +
-                                " (Non-Striker)"),
-                          ),
-                        ],
+                        items: teamBattingStats
+                            .asMap()
+                            .entries
+                            .map((entry) {
+                              final int idx = entry.key;
+                              final Map<String, dynamic> player = entry.value;
+                              // Only show active batsmen who are not out
+                              if (player['dismissal'] == 'not out' &&
+                                  (idx == _activeBatsman1Index ||
+                                      idx == _activeBatsman2Index)) {
+                                return DropdownMenuItem<int>(
+                                  value: idx,
+                                  child: Text((player['name']?.toString() ??
+                                          'Unknown Player') +
+                                      (idx == _activeBatsman1Index
+                                          ? ' (Striker)'
+                                          : ' (Non-Striker)')),
+                                );
+                              }
+                              return null;
+                            })
+                            .whereType<DropdownMenuItem<int>>()
+                            .toList(),
                         onChanged: (int? newValue) {
                           setState(() {
-                            runOutBatsmanIndex = newValue;
+                            runOutPlayerIndex = newValue;
                           });
                         },
                       ),
                       DropdownButtonFormField<String>(
                         value: runOutDirectThrowerName,
                         hint: const Text('Direct Thrower (Optional)'),
-                        items: uniqueOpponentPlayerNames.map((name) {
+                        items: opponentTeamPlayers.map((player) {
                           return DropdownMenuItem<String>(
-                            value: name,
-                            child: Text(name),
+                            value:
+                                player['name']?.toString() ?? 'Unknown Player',
+                            child: Text(
+                                player['name']?.toString() ?? 'Unknown Player'),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -1013,10 +1323,12 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                       DropdownButtonFormField<String>(
                         value: runOutReceiverName,
                         hint: const Text('Receiver (Optional)'),
-                        items: uniqueOpponentPlayerNames.map((name) {
+                        items: opponentTeamPlayers.map((player) {
                           return DropdownMenuItem<String>(
-                            value: name,
-                            child: Text(name),
+                            value:
+                                player['name']?.toString() ?? 'Unknown Player',
+                            child: Text(
+                                player['name']?.toString() ?? 'Unknown Player'),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -1032,7 +1344,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               actions: <Widget>[
                 TextButton(
                   onPressed: () {
-                    Navigator.of(dialogContext).pop(null);
+                    Navigator.of(dialogContext).pop(null); // Cancel
                   },
                   child: const Text('Cancel'),
                 ),
@@ -1040,11 +1352,13 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   onPressed: () {
                     if (selectedWicketType != null) {
                       String dismissalText = selectedWicketType!;
-                      bool bowlerWicket = false;
+                      bool bowlerWicket =
+                          false; // By default, not bowler's wicket
 
                       switch (selectedWicketType) {
                         case 'Bowled':
                         case 'LBW':
+                        case 'Hit Wicket':
                           dismissalText = '$selectedWicketType b $bowlerName';
                           bowlerWicket = true;
                           break;
@@ -1062,20 +1376,30 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                           String thrower = runOutDirectThrowerName != null &&
                                   runOutDirectThrowerName!.isNotEmpty
                               ? runOutDirectThrowerName!
-                              : 'Fielder';
+                              : '';
                           String receiver = runOutReceiverName != null &&
                                   runOutReceiverName!.isNotEmpty
                               ? runOutReceiverName!
-                              : 'Fielder';
-                          dismissalText = 'run out ($thrower/$receiver)';
-                          bowlerWicket = false;
-                          break;
-                        case 'Hit Wicket':
-                          dismissalText = 'hit wicket b $bowlerName';
-                          bowlerWicket = true;
+                              : '';
+                          dismissalText =
+                              'run out (${thrower.isNotEmpty ? thrower : "fielder"}${receiver.isNotEmpty ? "/$receiver" : ""})';
+                          bowlerWicket =
+                              false; // Run out is not a bowler's wicket
                           break;
                         case 'Obstructing the field':
                           dismissalText = 'obstructing the field';
+                          bowlerWicket = false;
+                          break;
+                        case 'Hit the ball twice':
+                          dismissalText = 'hit the ball twice';
+                          bowlerWicket = false;
+                          break;
+                        case 'Timed out':
+                          dismissalText = 'timed out';
+                          bowlerWicket = false;
+                          break;
+                        case 'Retired Out':
+                          dismissalText = 'retired out';
                           bowlerWicket = false;
                           break;
                         default:
@@ -1087,9 +1411,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         'fielder': caughtFielderName,
                         'bowler_wicket': bowlerWicket,
                         'full_dismissal_text': dismissalText,
-                        'run_out_batsman_index': selectedWicketType == 'Run Out'
-                            ? runOutBatsmanIndex
-                            : null, // Add dismissed batsman index
+                        'run_out_player_index':
+                            runOutPlayerIndex, // Pass this back
                       });
                     }
                   },
@@ -1103,89 +1426,69 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
   }
 
-  void _addDotBall() {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
+  // Handles a dot ball (no runs, legal delivery)
+  void _addBall() {
     setState(() {
       final List<Map<String, dynamic>> currentBattingTeam =
-          (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+          (_currentBattingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
               ? _teamABattingStats
               : _teamBBattingStats;
-      currentBattingTeam[_activeBatsman1Index]
-          ['balls']++; // Striker faces the dot ball
+      // Increment batsman's ball count for a dot ball
+      if (_activeBatsman1Index >= 0 &&
+          _activeBatsman1Index < currentBattingTeam.length) {
+        currentBattingTeam[_activeBatsman1Index]['balls']++;
+        _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+      }
     });
 
-    _incrementBallAndOverStats(); // Dot ball consumes a ball
+    _processLegalBall(eventType: 'Dot'); // This is a legal delivery
     _recordBallEvent(
       batsmanRuns: 0,
       extraRuns: 0,
       extraType: null,
       wicketTaken: false,
+      totalRunsOnBall: 0,
     );
-    _checkWinCondition();
   }
 
-  void _updateOvers() {
-    final List<Map<String, dynamic>> currentBowlingTeam =
-        (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
-            ? _teamABowlingStats
-            : _teamBBowlingStats;
-
-    if (_ballsInCurrentOver == 6) {
-      _currentOvers = (_currentOvers.floor() + 1).toDouble();
-      _ballsInCurrentOver = 0;
-      _overByOverSummary.add({
-        'over': _currentOvers.toInt(),
-        'runs': _currentRuns,
-        'wickets': _currentWickets,
-      });
-      if (_activeBowlerIndex < currentBowlingTeam.length) {
-        currentBowlingTeam[_activeBowlerIndex]['overs'] =
-            (currentBowlingTeam[_activeBowlerIndex]['overs'].floor() + 1.0);
-      }
-      _updateEconomyRate(currentBowlingTeam[_activeBowlerIndex]);
-
-      _changeBowler();
-      _swapStrike(); // Strike changes automatically at the end of an over
-    } else {
-      _currentOvers =
-          _currentOvers.floorToDouble() + (_ballsInCurrentOver / 10.0);
-      if (_activeBowlerIndex < currentBowlingTeam.length) {
-        currentBowlingTeam[_activeBowlerIndex]['overs'] =
-            _currentOvers.floorToDouble() + (_ballsInCurrentOver / 10.0);
-      }
-    }
-  }
-
+  // Calculates and updates batsman's strike rate
   void _updateStrikeRate(Map<String, dynamic> player) {
-    if (player['balls'] > 0) {
+    if ((player['balls'] as int? ?? 0) > 0) {
       player['sr'] = double.parse(
-          (player['runs'] / player['balls'] * 100).toStringAsFixed(2));
+          ((player['runs'] as int? ?? 0) / (player['balls'] as int? ?? 0) * 100)
+              .toStringAsFixed(2));
     } else {
       player['sr'] = 0.0;
     }
   }
 
+  // Calculates and updates bowler's economy rate
   void _updateEconomyRate(Map<String, dynamic> bowler) {
-    if (bowler['overs'] > 0) {
-      bowler['economy'] =
-          double.parse((bowler['runs'] / bowler['overs']).toStringAsFixed(2));
+    // Economy rate is runs conceded per over (6 balls)
+    // Runs conceded includes all runs: runs off bat, wide, no-ball, byes, leg-byes etc.
+    // Use total_legal_balls_bowled for the 'overs' part of the economy calculation.
+    int legalBalls = bowler['total_legal_balls_bowled'] as int? ?? 0;
+    if (legalBalls > 0) {
+      bowler['economy'] = double.parse(
+          ((bowler['runs'] as int? ?? 0) / legalBalls * 6).toStringAsFixed(2));
     } else {
       bowler['economy'] = 0.0;
     }
   }
 
+  // Dialog to change the active bowler
   Future<void> _changeBowler() async {
     final List<Map<String, dynamic>> currentBowlingTeam =
-        (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBowlingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABowlingStats
             : _teamBBowlingStats;
 
     int? newBowlerIndex = await _showPlayerSelectionDialog(
       title: 'Select New Bowler for ${_currentBowlingTeamName}',
       players: currentBowlingTeam,
-      excludedIndices: [_activeBowlerIndex],
+      excludedIndices: [_activeBowlerIndex], // Exclude current bowler
       isBatsman: false,
     );
 
@@ -1196,6 +1499,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     }
   }
 
+  // Swaps the active striker and non-striker batsmen
   void _swapStrike() {
     setState(() {
       final temp = _activeBatsman1Index;
@@ -1204,10 +1508,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     });
   }
 
+  // Handles byes: adds runs to batsman and total score, counts as legal delivery, not as 'extra'
   Future<void> _handleByes() async {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
     int? runs = await showDialog<int>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -1215,13 +1517,12 @@ class _MatchDetailPageState extends State<MatchDetailPage>
           title: const Text('Runs from Byes'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-                5, // Options for 0 to 4 runs (1-4 on field + 1 extra)
-                (index) => ListTile(
-                      title:
-                          Text('${index + 1} run${index + 1 > 1 ? 's' : ''}'),
-                      onTap: () => Navigator.of(dialogContext).pop(index + 1),
-                    )),
+            children: [1, 2, 3, 4]
+                .map((r) => ListTile(
+                      title: Text('$r run${r > 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
           ),
           actions: [
             TextButton(
@@ -1235,33 +1536,33 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
     if (runs != null) {
       setState(() {
-        _addRunsToScore(totalRunsAdded: runs, isExtra: true, extraType: 'Bye');
-
         final List<Map<String, dynamic>> currentBattingTeam =
-            (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+            (_currentBattingTeamName ==
+                    (widget.match['teamA']?.toString() ?? 'Team A'))
                 ? _teamABattingStats
                 : _teamBBattingStats;
-        currentBattingTeam[_activeBatsman1Index]
-            ['balls']++; // Striker faces the ball for Byes
-
-        _incrementBallAndOverStats(); // Byes count as a ball in the over
-
-        if (runs % 2 != 0) _swapStrike();
-        _recordBallEvent(
-          batsmanRuns: 0,
-          extraRuns: runs,
-          extraType: 'Bye',
-          wicketTaken: false,
-        );
+        if (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeam.length) {
+          currentBattingTeam[_activeBatsman1Index]['balls']++;
+          _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+        }
       });
-      _checkWinCondition();
+      // Runs are credited to batsman, no 'extra' for the extras counter
+      _addRuns(runs,
+          batsmanRuns: 0, extraRuns: runs, extraType: 'Bye', eventType: 'Bye');
+      _processLegalBall(eventType: 'Bye'); // Byes count as a legal delivery
+      _recordBallEvent(
+        batsmanRuns: 0, // Show runs credited to batsman in event
+        extraRuns: runs, // No extra count here for the event
+        extraType: 'Bye',
+        wicketTaken: false,
+        totalRunsOnBall: runs,
+      );
     }
   }
 
+  // Handles leg byes: adds runs to batsman and total score, counts as legal delivery, not as 'extra'
   Future<void> _handleLegByes() async {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
     int? runs = await showDialog<int>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -1269,13 +1570,12 @@ class _MatchDetailPageState extends State<MatchDetailPage>
           title: const Text('Runs from Leg Byes'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-                5, // Options for 0 to 4 runs (1-4 on field + 1 extra)
-                (index) => ListTile(
-                      title:
-                          Text('${index + 1} run${index + 1 > 1 ? 's' : ''}'),
-                      onTap: () => Navigator.of(dialogContext).pop(index + 1),
-                    )),
+            children: [1, 2, 3, 4]
+                .map((r) => ListTile(
+                      title: Text('$r run${r > 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
           ),
           actions: [
             TextButton(
@@ -1286,50 +1586,54 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         );
       },
     );
-
+    print("legbye runs" + runs.toString());
     if (runs != null) {
       setState(() {
-        _addRunsToScore(
-            totalRunsAdded: runs, isExtra: true, extraType: 'Leg Bye');
-
         final List<Map<String, dynamic>> currentBattingTeam =
-            (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+            (_currentBattingTeamName ==
+                    (widget.match['teamA']?.toString() ?? 'Team A'))
                 ? _teamABattingStats
                 : _teamBBattingStats;
-        currentBattingTeam[_activeBatsman1Index]
-            ['balls']++; // Striker faces the ball for Leg Byes
-
-        _incrementBallAndOverStats(); // Leg Byes count as a ball in the over
-
-        if (runs % 2 != 0) _swapStrike();
-        _recordBallEvent(
+        if (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeam.length) {
+          currentBattingTeam[_activeBatsman1Index]['balls']++;
+          _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+        }
+      });
+      // Runs are credited to batsman, no 'extra' for the extras counter
+      print("leg bye extra runs" + runs.toString());
+      _addRuns(runs,
           batsmanRuns: 0,
           extraRuns: runs,
           extraType: 'Leg Bye',
-          wicketTaken: false,
-        );
-      });
-      _checkWinCondition();
+          eventType: 'LegBye');
+      _processLegalBall(
+          eventType: 'LegBye'); // Leg Byes count as a legal delivery
+      _recordBallEvent(
+        batsmanRuns: 0, // Show runs credited to batsman in event
+        extraRuns: runs, // No extra count here for the event
+        extraType: 'Leg Bye',
+        wicketTaken: false,
+        totalRunsOnBall: runs,
+      );
     }
   }
 
+  // Handles wide: +1 extra, plus any runs run. Not counted as legal delivery.
   Future<void> _handleWide() async {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
-    int? additionalRuns = await showDialog<int>(
+    int? runsFromWide = await showDialog<int>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Additional Runs from Wide (excluding 1 penalty)'),
+          title: const Text('Runs from Wide'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-                7, // Options for 0 to 6 additional runs
-                (index) => ListTile(
-                      title: Text('$index run${index != 1 ? 's' : ''}'),
-                      onTap: () => Navigator.of(dialogContext).pop(index),
-                    )),
+            children: [1, 2, 3, 4, 5] // 1 (wide) + additional runs if run
+                .map((r) => ListTile(
+                      title: Text('$r wide run${r > 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
           ),
           actions: [
             TextButton(
@@ -1341,44 +1645,41 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       },
     );
 
-    if (additionalRuns != null) {
-      setState(() {
-        int totalRuns =
-            1 + additionalRuns; // 1 for wide penalty + additional runs
-        _addRunsToScore(
-            totalRunsAdded: totalRuns, isExtra: true, extraType: 'Wide');
-
-        // Wide does NOT count as a ball in the over or for batsman's balls faced.
-        _recordBallEvent(
+    if (runsFromWide != null) {
+      print(runsFromWide);
+      // 1 run is the wide penalty, (runsFromWide - 1) are byes off the wide.
+      // These runs are NOT credited to batsman, but are extras for the _extras counter.
+      _addRuns(runsFromWide,
           batsmanRuns: 0,
-          extraRuns: totalRuns, // Record total runs as extra
+          extraRuns: runsFromWide,
           extraType: 'Wide',
-          wicketTaken: false,
-        );
-        // Only swap strike if additional runs (from fielding, excluding penalty) are odd
-        if (additionalRuns % 2 != 0) _swapStrike();
-      });
-      _checkWinCondition();
+          eventType: 'Wide');
+      // No _processLegalBall() here as wide is not a legal delivery.
+      _recordBallEvent(
+        batsmanRuns: 0,
+        extraRuns: runsFromWide, // Record total extra runs for the event
+        extraType: 'Wide',
+        wicketTaken: false,
+        totalRunsOnBall: runsFromWide,
+      );
     }
   }
 
+  // Handles no-ball: total runs (1 penalty + off bat) credited to batsman, not counted as legal delivery.
   Future<void> _handleNoBall() async {
-    _lastGameStateSnapshot =
-        _createGameStateSnapshot(); // Capture state for undo
-
     int? runsOffBat = await showDialog<int>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Runs off Bat from No Ball'),
           content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-                7, // Options for 0 to 6 runs off bat
-                (index) => ListTile(
-                      title: Text('$index run${index != 1 ? 's' : ''}'),
-                      onTap: () => Navigator.of(dialogContext).pop(index),
-                    )),
+            mainAxisSize: MainAxisSize.min, // Corrected from isScrollable
+            children: [0, 1, 2, 3, 4, 5, 6] // Runs from bat on a no-ball
+                .map((r) => ListTile(
+                      title: Text('$r run${r != 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
           ),
           actions: [
             TextButton(
@@ -1391,40 +1692,88 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
 
     if (runsOffBat != null) {
-      setState(() {
-        int totalRunsAdded =
-            1 + runsOffBat; // 1 for no-ball penalty + runs off bat
-        _addRunsToScore(
-            totalRunsAdded: totalRunsAdded,
-            batsmanRuns: runsOffBat,
-            isExtra: true,
-            extraType: 'No Ball');
+      int totalRuns = 1 + runsOffBat; // 1 for no-ball penalty + runs off bat
 
-        final List<Map<String, dynamic>> currentBattingTeam =
-            (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
-                ? _teamABattingStats
-                : _teamBBattingStats;
-        if (runsOffBat > 0 &&
-            _activeBatsman1Index < currentBattingTeam.length) {
-          currentBattingTeam[_activeBatsman1Index]
-              ['balls']++; // Batsman faces a ball for runs off bat
-        }
+      // Increment batsman's ball count for a no-ball where they faced it
+      final List<Map<String, dynamic>> currentBattingTeam =
+          (_currentBattingTeamName ==
+                  (widget.match['teamA']?.toString() ?? 'Team A'))
+              ? _teamABattingStats
+              : _teamBBattingStats;
+      if (_activeBatsman1Index >= 0 &&
+          _activeBatsman1Index < currentBattingTeam.length) {
+        currentBattingTeam[_activeBatsman1Index]['balls']++;
+        _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+      }
+      _partnershipBalls++; // No-balls count for partnership balls
 
-        // No Ball does NOT count as a ball in the over.
-        if (runsOffBat % 2 != 0)
-          _swapStrike(); // Only runs off bat change strike
-        _recordBallEvent(
-          batsmanRuns: runsOffBat,
-          extraRuns: 1, // Record the 1 extra for no-ball penalty
+      // All runs (penalty + off bat) are attributed to the batsman, no 'extra' for the extras counter
+      _addRuns(totalRuns,
+          batsmanRuns:
+              totalRuns, // Total runs (including penalty) attributed to batsman
+          extraRuns: 0, // No extra count here for the extras counter
           extraType: 'No Ball',
-          wicketTaken: false,
-        );
-      });
-      _checkWinCondition();
+          eventType: 'NoBall');
+      // No _processLegalBall() here as no-ball is not a legal delivery.
+      _recordBallEvent(
+        batsmanRuns:
+            totalRuns, // Show total runs (incl. penalty) credited to batsman in event
+        extraRuns: 0, // No extra count here for the event record
+        extraType: 'No Ball',
+        wicketTaken: false,
+        totalRunsOnBall: totalRuns,
+      );
     }
   }
 
-  void _endInnings() {
+  // Handles overthrows: runs added, credited to batsman, no ball added anywhere.
+  Future<void> _handleOverthrow() async {
+    int? runs = await showDialog<int>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Runs from Overthrow'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [1, 2, 3, 4, 5]
+                .map((r) => ListTile(
+                      title: Text('$r run${r > 1 ? 's' : ''}'),
+                      onTap: () => Navigator.of(dialogContext).pop(r),
+                    ))
+                .toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (runs != null) {
+      // Overthrows add to total runs and are credited to the batsman on strike.
+      // They do NOT increment the main ball count, bowler's balls, or batsman's faced balls for this event.
+      _addRuns(runs,
+          batsmanRuns:
+              runs, // Overthrow runs go to the batsman if it was off bat.
+          extraRuns: 0, // Not counted in the 'extras' section on the scorecard.
+          extraType: 'Overthrow',
+          eventType: 'Overthrow');
+
+      _recordBallEvent(
+        batsmanRuns: runs,
+        extraRuns: 0, // No extra count here, these are actual runs
+        extraType: 'Overthrow',
+        wicketTaken: false,
+        totalRunsOnBall: runs,
+      );
+    }
+  }
+
+  // Ends the current innings and prepares for the next, or ends the match.
+  void _endInnings() async {
     if (_isFirstInnings) {
       _firstInningsRuns = _currentRuns;
       _firstInningsWickets = _currentWickets;
@@ -1432,22 +1781,29 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
       setState(() {
         _isFirstInnings = false;
+        // Swap batting and bowling teams for the second innings
         String tempTeamName = _currentBattingTeamName;
         _currentBattingTeamName = _currentBowlingTeamName;
         _currentBowlingTeamName = tempTeamName;
 
+        int tempTeamId = _currentBattingTeamId;
+        _currentBattingTeamId = _currentBowlingTeamId;
+        _currentBowlingTeamId = tempTeamId;
+
         _currentRuns = 0;
         _currentWickets = 0;
-        _currentOvers = 0.0;
         _ballsInCurrentOver = 0;
-        _extras = 0;
+        _totalLegalBallsBowledInInnings = 0;
+        _extras = 0; // Reset extras for the new innings
         _partnershipRuns = 0;
         _partnershipBalls = 0;
         _activeBatsman1Index = 0;
         _activeBatsman2Index = 1;
         _activeBowlerIndex = 0;
 
-        // Reset player stats for the new innings (deep copy to avoid reference issues)
+        // Reset player stats for the new innings (only those relevant to current innings)
+        // Keep career stats (runs/wickets from previous innings) in a separate structure if needed for full match.
+        // For this app, batting/bowling stats lists are reset for the *current* innings display.
         _teamABattingStats = _teamABattingStats
             .map((e) => {
                   ...e,
@@ -1474,6 +1830,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             .map((e) => {
                   ...e,
                   'overs': 0.0,
+                  'total_legal_balls_bowled': 0, // Reset for new innings
                   'maidens': 0,
                   'runs': 0,
                   'wickets': 0,
@@ -1484,6 +1841,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             .map((e) => {
                   ...e,
                   'overs': 0.0,
+                  'total_legal_balls_bowled': 0, // Reset for new innings
                   'maidens': 0,
                   'runs': 0,
                   'wickets': 0,
@@ -1495,76 +1853,32 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         _ballEvents.clear();
       });
 
+      await _updateScoreOnBackend(eventType: 'EndInnings', isMatchOver: false);
       _showInningsBreakDialog();
     } else {
-      _showWinnerDialog();
+      // This case handles the explicit 'End Innings' button being pressed in the second innings.
+      // The _checkWinCondition will determine the winner based on current scores.
+      await _updateScoreOnBackend(eventType: 'EndMatch', isMatchOver: true);
+      _checkWinCondition();
     }
   }
 
-  void _showWinnerDialog() {
-    String winnerText = '';
-    String winningTeam = '';
-    String losingTeam = '';
-
-    if (_currentRuns >= _targetScore) {
-      winningTeam = widget.match['teamB'] ?? 'Team South Africa';
-      losingTeam = widget.match['teamA'] ?? 'Team India';
-      winnerText = '$winningTeam won by ${10 - _currentWickets} wickets!';
-    } else {
-      winningTeam = widget.match['teamA'] ?? 'Team India';
-      losingTeam = widget.match['teamB'] ?? 'Team South Africa';
-      winnerText =
-          '$winningTeam won by ${_firstInningsRuns - _currentRuns} runs!';
-    }
-
-    showDialog(
+  // Shows a dialog for innings break
+  void _showInningsBreakDialog() async {
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          backgroundColor:
-              Colors.blue.shade200.withOpacity(0.9), // Transparent blue
-          title: const Text('Match Result',
-              style:
-                  TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-          content: Text(
-            winnerText,
-            style: const TextStyle(color: Colors.blue, fontSize: 16),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('OK',
-                  style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold)), // Changed to white
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showInningsBreakDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          backgroundColor:
-              Colors.blue.shade200.withOpacity(0.9), // Transparent blue
+          backgroundColor: Colors.lightBlue.shade700, // Adjusted for blue theme
           title: const Text('Innings Break!',
               style:
-                  TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: Text(
-            '${widget.match['teamA'] ?? 'Team A'} scored $_firstInningsRuns/$_firstInningsWickets in their innings.\nTarget for ${widget.match['teamB'] ?? 'Team B'} is $_targetScore runs.',
-            style: const TextStyle(color: Colors.blue, fontSize: 16),
+            '${_selectedFirstBattingTeamName} scored $_firstInningsRuns/$_firstInningsWickets in their innings.\nTarget for ${_currentBattingTeamName} is $_targetScore runs.',
+            style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
           actions: <Widget>[
             TextButton(
@@ -1573,8 +1887,77 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               },
               child: const Text('Continue',
                   style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold)), // Changed to white
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+    // After the dialog is dismissed, re-select players for the new innings
+    _selectInitialPlayers();
+  }
+
+  // New method to show final match results
+  Future<void> _showMatchResultDialog({
+    required String winningTeam,
+    required String losingTeam,
+    required int winningTeamScore,
+    required int winningTeamWickets,
+    required int losingTeamScore,
+    required int losingTeamWickets,
+    required String result,
+  }) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap button to dismiss
+      builder: (BuildContext dialogContext) {
+        // Determine which team is Team A and which is Team B for display
+        final String teamAName = widget.match['teamA']?.toString() ?? 'Team A';
+        final String teamBName = widget.match['teamB']?.toString() ?? 'Team B';
+
+        int teamARuns;
+        int teamAWickets;
+        int teamBRuns;
+        int teamBWickets;
+
+        // Assign scores based on who batted first and who is currently batting/bowling
+        // This ensures the final scorecard displays correct full match scores.
+        if (_selectedFirstBattingTeamName == teamAName) {
+          // Team A batted first, so first innings stats are Team A's, current stats are Team B's
+          teamARuns = _firstInningsRuns;
+          teamAWickets = _firstInningsWickets;
+          teamBRuns = _currentRuns;
+          teamBWickets = _currentWickets;
+        } else {
+          // Team B batted first, so first innings stats are Team B's, current stats are Team A's
+          teamARuns = _currentRuns;
+          teamAWickets = _currentWickets;
+          teamBRuns = _firstInningsRuns;
+          teamBWickets = _firstInningsWickets;
+        }
+
+        return AlertDialog(
+          title: const Text('Match Result'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text(result,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 16),
+                Text('$teamAName Score: $teamARuns-$teamAWickets'),
+                Text('$teamBName Score: $teamBRuns-$teamBWickets'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                // Optionally reset game state or navigate to a new screen after match ends
+                // For example, you might want to call a method to reset all game variables to initial state.
+              },
             ),
           ],
         );
@@ -1582,38 +1965,75 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
   }
 
+  // --- Check Win Condition ---
   void _checkWinCondition() {
+    // Only check win condition if it's the second innings
     if (!_isFirstInnings) {
-      if (_currentRuns >= _targetScore) {
-        _showWinnerDialog();
-      } else if (_currentWickets == 10 || _currentOvers >= 20.0) {
-        _endInnings();
-      }
-    } else {
-      if (_currentWickets == 10 || _currentOvers >= 20.0) {
-        _endInnings();
-      }
-    }
-  }
+      final String teamA = widget.match['teamA']?.toString() ?? 'Team A';
+      final String teamB = widget.match['teamB']?.toString() ?? 'Team B';
 
-  // --- Undo Functionality ---
-  void _undoLastAction() {
-    if (_lastGameStateSnapshot != null) {
-      _restoreGameStateFromSnapshot(_lastGameStateSnapshot!);
-      _lastGameStateSnapshot = null; // Clear snapshot after undo
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Last action undone.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      String winningTeamName = '';
+      String losingTeamName = '';
+      String resultText = '';
+      bool matchEnded = false;
+
+      // Scenario 1: Batting team reaches or exceeds the target
+      if (_currentRuns >= _targetScore) {
+        winningTeamName = _currentBattingTeamName;
+        losingTeamName = _currentBowlingTeamName;
+        final int wicketsRemaining = 10 - _currentWickets;
+        resultText = '$winningTeamName won by ${wicketsRemaining} wickets.';
+        matchEnded = true;
+      }
+
+      // Scenario 2: Bowling team wins (batting team all out or overs completed and target not reached)
+      final bool isAllOut = _currentWickets >= 10;
+      final bool isOversComplete =
+          _currentOversDisplay.floor() >= 20; // Assuming 20 overs for T20
+
+      if (!matchEnded && (isAllOut || isOversComplete)) {
+        if (_currentRuns < _targetScore - 1) {
+          // Current team did not reach target, and didn't tie
+          winningTeamName = _currentBowlingTeamName;
+          losingTeamName = _currentBattingTeamName;
+          final int runsDifference =
+              _targetScore - _currentRuns - 1; // Subtract 1 for target
+          resultText = '$winningTeamName won by $runsDifference runs.';
+          matchEnded = true;
+        } else if (_currentRuns == _targetScore - 1) {
+          // Current team tied the score
+          resultText = 'Match Tied!';
+          matchEnded = true;
+        }
+      }
+
+      if (matchEnded) {
+        _showMatchResultDialog(
+            winningTeam: winningTeamName,
+            losingTeam: losingTeamName,
+            winningTeamScore: (_currentBattingTeamName == teamA)
+                ? _currentRuns
+                : _firstInningsRuns,
+            winningTeamWickets: (_currentBattingTeamName == teamA)
+                ? _currentWickets
+                : _firstInningsWickets,
+            losingTeamScore: (_currentBattingTeamName == teamA)
+                ? _firstInningsRuns
+                : _currentRuns,
+            losingTeamWickets: (_currentBattingTeamName == teamA)
+                ? _firstInningsWickets
+                : _currentWickets,
+            result: resultText);
+        _updateScoreOnBackend(
+            eventType: 'MatchEnd',
+            isMatchOver: true); // Inform backend match is over
+        return; // Match ended
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No action to undo.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      // First innings: check for all out or overs complete
+      if (_currentWickets == 10 || _currentOversDisplay.floor() >= 20) {
+        _endInnings();
+      }
     }
   }
 
@@ -1622,25 +2042,22 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     final match = widget.match;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Very light grey
+      backgroundColor: Colors.lightBlue.shade50, // Very light blue background
       appBar: AppBar(
         title:
             const Text('Match Centre', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.blue.shade100
-            .withOpacity(0.5), // Lighter transparent blue for app bar
+        backgroundColor: Colors.lightBlue.shade800, // Darker blue for app bar
         iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(
           controller: _mainTabController,
           isScrollable: true,
-          labelColor: Colors.blue.shade900, // Darker blue for selected label
-          unselectedLabelColor: Colors.blue.shade500
-              .withOpacity(0.7), // Mid transparent blue for unselected
-          indicatorColor: Colors.blue.shade300
-              .withOpacity(0.9), // Transparent light blue accent for indicator
+          labelColor: Colors.white, // White for selected label
+          unselectedLabelColor:
+              Colors.lightBlue.shade200, // Lighter blue for unselected
+          indicatorColor: Colors.white, // Solid white for indicator
           tabs: const [
             Tab(text: 'Scoring'),
             Tab(text: 'Scorecard'),
-            Tab(text: 'Balls'),
           ],
         ),
       ),
@@ -1649,20 +2066,24 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         children: [
           _buildScoringView(match),
           _buildScorecardTabView(), // Call the method without args, it will use state
-          _buildBallsView(),
         ],
       ),
     );
   }
 
+  // Builds the main scoring view, displaying current match info and scoring controls.
   Widget _buildScoringView(Map<String, dynamic> match) {
-    double crr = (_currentOvers > 0) ? (_currentRuns / _currentOvers) : 0.0;
+    // Current Run Rate calculation
+    double crr = (_totalLegalBallsBowledInInnings > 0)
+        ? (_currentRuns / _totalLegalBallsBowledInInnings * 6)
+        : 0.0;
 
+    // Required Run Rate calculation for second innings
     double rrr = 0.0;
     if (!_isFirstInnings &&
-        _currentOvers < 20.0 &&
+        _currentOversDisplay.floor() < 20 &&
         _targetScore > _currentRuns) {
-      int ballsRemaining = (20 * 6) - (_currentOvers * 6).round();
+      int ballsRemaining = (20 * 6) - _totalLegalBallsBowledInInnings;
       int runsNeeded = _targetScore - _currentRuns;
       if (ballsRemaining > 0) {
         rrr = (runsNeeded / ballsRemaining) * 6;
@@ -1670,67 +2091,103 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     }
 
     final List<Map<String, dynamic>> currentBattingTeamPlayers =
-        (_currentBattingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBattingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABattingStats
             : _teamBBattingStats;
     final List<Map<String, dynamic>> currentBowlingTeamPlayers =
-        (_currentBowlingTeamName == (widget.match['teamA'] ?? 'Team A'))
+        (_currentBowlingTeamName ==
+                (widget.match['teamA']?.toString() ?? 'Team A'))
             ? _teamABowlingStats
             : _teamBBowlingStats;
 
-    final String batsman1Name =
-        (_activeBatsman1Index < currentBattingTeamPlayers.length &&
-                _activeBatsman1Index >= 0)
-            ? currentBattingTeamPlayers[_activeBatsman1Index]['name']
-            : 'N/A';
-    final String batsman2Name =
-        (_activeBatsman2Index < currentBattingTeamPlayers.length &&
-                _activeBatsman2Index >= 0)
-            ? currentBattingTeamPlayers[_activeBatsman2Index]['name']
-            : 'N/A';
-    final String bowlerName =
-        (_activeBowlerIndex < currentBowlingTeamPlayers.length &&
-                _activeBowlerIndex >= 0)
-            ? currentBowlingTeamPlayers[_activeBowlerIndex]['name']
-            : 'N/A';
+    final String batsman1Name = (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeamPlayers.length)
+        ? currentBattingTeamPlayers[_activeBatsman1Index]['name']?.toString() ??
+            'N/A'
+        : 'N/A';
+    final String batsman2Name = (_activeBatsman2Index >= 0 &&
+            _activeBatsman2Index < currentBattingTeamPlayers.length)
+        ? currentBattingTeamPlayers[_activeBatsman2Index]['name']?.toString() ??
+            'N/A'
+        : 'N/A';
+    final String bowlerName = (_activeBowlerIndex >= 0 &&
+            _activeBowlerIndex < currentBowlingTeamPlayers.length)
+        ? currentBowlingTeamPlayers[_activeBowlerIndex]['name']?.toString() ??
+            'N/A'
+        : 'N/A';
 
-    final String batsman1Runs =
-        (_activeBatsman1Index < currentBattingTeamPlayers.length &&
-                _activeBatsman1Index >= 0)
-            ? currentBattingTeamPlayers[_activeBatsman1Index]['runs'].toString()
-            : '0';
-    final String batsman1Balls = (_activeBatsman1Index <
-                currentBattingTeamPlayers.length &&
-            _activeBatsman1Index >= 0)
-        ? currentBattingTeamPlayers[_activeBatsman1Index]['balls'].toString()
+    final String batsman1Runs = (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeamPlayers.length)
+        ? (currentBattingTeamPlayers[_activeBatsman1Index]['runs'] as int? ?? 0)
+            .toString()
         : '0';
-    final String batsman2Runs =
-        (_activeBatsman2Index < currentBattingTeamPlayers.length &&
-                _activeBatsman2Index >= 0)
-            ? currentBattingTeamPlayers[_activeBatsman2Index]['runs'].toString()
-            : '0';
-    final String batsman2Balls = (_activeBatsman2Index <
-                currentBattingTeamPlayers.length &&
-            _activeBatsman2Index >= 0)
-        ? currentBattingTeamPlayers[_activeBatsman2Index]['balls'].toString()
+    final String batsman1Balls = (_activeBatsman1Index >= 0 &&
+            _activeBatsman1Index < currentBattingTeamPlayers.length)
+        ? (currentBattingTeamPlayers[_activeBatsman1Index]['balls'] as int? ??
+                0)
+            .toString()
+        : '0';
+    final String batsman2Runs = (_activeBatsman2Index >= 0 &&
+            _activeBatsman2Index < currentBattingTeamPlayers.length)
+        ? (currentBattingTeamPlayers[_activeBatsman2Index]['runs'] as int? ?? 0)
+            .toString()
+        : '0';
+    final String batsman2Balls = (_activeBatsman2Index >= 0 &&
+            _activeBatsman2Index < currentBattingTeamPlayers.length)
+        ? (currentBattingTeamPlayers[_activeBatsman2Index]['balls'] as int? ??
+                0)
+            .toString()
         : '0';
 
-    final String bowlerOvers =
-        (_activeBowlerIndex < currentBowlingTeamPlayers.length &&
-                _activeBowlerIndex >= 0)
-            ? currentBowlingTeamPlayers[_activeBowlerIndex]['overs']
-                .toStringAsFixed(1)
-            : '0.0';
-    final String bowlerRuns =
-        (_activeBowlerIndex < currentBowlingTeamPlayers.length &&
-                _activeBowlerIndex >= 0)
-            ? currentBowlingTeamPlayers[_activeBowlerIndex]['runs'].toString()
-            : '0';
-    final String bowlerWickets = (_activeBowlerIndex <
-                currentBowlingTeamPlayers.length &&
-            _activeBowlerIndex >= 0)
-        ? currentBowlingTeamPlayers[_activeBowlerIndex]['wickets'].toString()
+    final String bowlerOvers = (_activeBowlerIndex >= 0 &&
+            _activeBowlerIndex < currentBowlingTeamPlayers.length)
+        ? (currentBowlingTeamPlayers[_activeBowlerIndex]['overs'] as double? ??
+                0.0)
+            .toStringAsFixed(1)
+        : '0.0';
+    final String bowlerRuns = (_activeBowlerIndex >= 0 &&
+            _activeBowlerIndex < currentBowlingTeamPlayers.length)
+        ? (currentBowlingTeamPlayers[_activeBowlerIndex]['runs'] as int? ?? 0)
+            .toString()
         : '0';
+    final String bowlerWickets = (_activeBowlerIndex >= 0 &&
+            _activeBowlerIndex < currentBowlingTeamPlayers.length)
+        ? (currentBowlingTeamPlayers[_activeBowlerIndex]['wickets'] as int? ??
+                0)
+            .toString()
+        : '0';
+
+    String winningMessage = '';
+    bool isMatchOverDisplay = false; // Separate variable for display purposes
+
+    // Check for match over conditions and set winning message if applicable
+    if (!_isFirstInnings) {
+      if (_currentRuns >= _targetScore) {
+        isMatchOverDisplay = true;
+        final int wicketsRemaining = 10 - _currentWickets;
+        winningMessage =
+            '${_currentBattingTeamName} won by ${wicketsRemaining} wickets.';
+      } else {
+        final bool isAllOut = _currentWickets >= 10;
+        final bool isOversComplete = _currentOversDisplay.floor() >= 20.0;
+        if (isAllOut || isOversComplete) {
+          isMatchOverDisplay = true;
+          if (_currentRuns < _targetScore - 1) {
+            final int runsDifference = _targetScore - _currentRuns - 1;
+            winningMessage =
+                '${_currentBowlingTeamName} won by ${runsDifference} runs.';
+          } else if (_currentRuns == _targetScore - 1) {
+            winningMessage = 'Match Tied!';
+          }
+        }
+      }
+    } else {
+      if (_currentWickets == 10 || _currentOversDisplay.floor() >= 20.0) {
+        isMatchOverDisplay = true; // First innings concluded
+        // No explicit winning message for first innings conclusion here
+      }
+    }
 
     return Column(
       children: [
@@ -1738,339 +2195,621 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
-          color: Colors.blue.shade50
-              .withOpacity(0.3), // Very light transparent blue for top section
+          color:
+              Colors.lightBlue.shade900, // Dark blue background for match info
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                match['match'] ?? 'Unknown Match',
-                style: TextStyle(color: Colors.blue.shade900, fontSize: 16),
+                match['match']?.toString() ?? 'Unknown Match',
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          widget.match['teamA'] ?? 'Team A',
-                          style: TextStyle(
-                              color: Colors.blue.shade900,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          (_selectedFirstBattingTeamName ==
-                                  (widget.match['teamA'] ?? 'Team A'))
-                              ? '$_currentRuns/$_currentWickets (${_currentOvers.toStringAsFixed(1)})'
-                              : (_isFirstInnings
-                                  ? ''
-                                  : '$_firstInningsRuns/$_firstInningsWickets (20.0 Ov)'),
-                          style: TextStyle(
-                              color: Colors.blue.shade900,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text('vs',
-                      style: TextStyle(
-                          color: Colors.blue.shade700.withOpacity(0.8),
-                          fontSize: 16)),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          widget.match['teamB'] ?? 'Team B',
-                          style: TextStyle(
-                              color: Colors.blue.shade900,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          (_selectedFirstBattingTeamName ==
-                                  (widget.match['teamB'] ?? 'Team B'))
-                              ? '$_currentRuns/$_currentWickets (${_currentOvers.toStringAsFixed(1)})'
-                              : (_isFirstInnings
-                                  ? ''
-                                  : 'Target: $_targetScore'),
-                          style: TextStyle(
-                              color: Colors.blue.shade900,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (_isFirstInnings)
+              if (isMatchOverDisplay &&
+                  winningMessage
+                      .isNotEmpty) // Display winning message if applicable
                 Text(
-                  '${_currentBattingTeamName} Batting',
-                  style: TextStyle(
-                      color: Colors.blue.shade700
-                          .withOpacity(0.9), // Transparent blue
-                      fontSize: 16,
+                  winningMessage,
+                  style: const TextStyle(
+                      color: Colors.amberAccent,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
                 )
-              else if (!_isFirstInnings && _targetScore > 0)
+              else if (_isFirstInnings) // Display for First Innings
                 Column(
                   children: [
                     Text(
-                      '${_currentBattingTeamName} needs ${_targetScore - _currentRuns} runs in ${(20 * 6) - (_currentOvers * 6).round()} balls',
-                      style: TextStyle(
-                          color: Colors.blue.shade700
-                              .withOpacity(0.9), // Transparent blue
-                          fontSize: 16,
+                      _currentBattingTeamName,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'CRR: ${crr.toStringAsFixed(2)} RRR: ${rrr.toStringAsFixed(2)}',
-                      style: TextStyle(
-                          color: Colors.blue.shade700.withOpacity(0.8),
-                          fontSize: 14),
+                      'Score: $_currentRuns/$_currentWickets (${_currentOversDisplay.toStringAsFixed(1)})',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold),
                     ),
                   ],
+                )
+              else // Display for Second Innings (Target-based)
+                Column(
+                  children: [
+                    Text(
+                      '$_currentBattingTeamName Batting',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Score: $_currentRuns/$_currentWickets (${_currentOversDisplay.toStringAsFixed(1)})',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Target: $_targetScore | Needs ${_targetScore - _currentRuns} runs from ${((20 * 6) - _totalLegalBallsBowledInInnings)} balls',
+                      style: const TextStyle(
+                          color: Colors.amberAccent, // Amber for target info
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    Text('RRR: ${rrr.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            color: Colors.amberAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                  ],
                 ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        // Spacer to push the scoring pad to the bottom
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Bowler Info
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50
-                        .withOpacity(0.4), // Light transparent blue
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: Colors.blue.shade100
-                            .withOpacity(0.6)), // Mid transparent blue border
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Bowler',
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue.shade800,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            bowlerName,
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade900),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Runs/Wickets',
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue.shade800,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$bowlerRuns/$bowlerWickets ($bowlerOvers Ov)',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade900),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
-                // Batsmen Info
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50
-                        .withOpacity(0.4), // Light transparent blue
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: Colors.blue.shade100
-                            .withOpacity(0.6)), // Mid transparent blue border
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Striker',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$batsman1Name*',
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Runs (Balls)',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$batsman1Runs ($batsman1Balls)',
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Divider(
-                          height: 20,
-                          thickness: 1,
-                          color: Colors.blue.shade100
-                              .withOpacity(0.6)), // Transparent blue divider
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Non-Striker',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                batsman2Name,
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Runs (Balls)',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$batsman2Runs ($batsman2Balls)',
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                // Extras, Overs, CRR row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Extras - $_extras',
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                    Text(
+                        'Overs - ${_currentOversDisplay.toStringAsFixed(1)} / 20',
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                    Text('CRR - ${crr.toStringAsFixed(1)}',
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                  ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Center(
                   child: Text(
                     'Partnership - $_partnershipRuns($_partnershipBalls)',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.blue.shade700.withOpacity(0.9)),
+                        color: Colors.lightBlue.shade800,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
-                const SizedBox(height: 16),
-                // Last 5 Balls Summary
+                const SizedBox(height: 12), // Reduced spacing
+                // Batsman Info Table
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Batsman',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.lightBlue)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.all(4), // Reduced padding
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.lightBlue.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(2.5),
+                          1: FlexColumnWidth(1),
+                          2: FlexColumnWidth(1),
+                          3: FlexColumnWidth(1),
+                          4: FlexColumnWidth(1),
+                          5: FlexColumnWidth(1.5),
+                        },
+                        children: [
+                          TableRow(
+                            decoration: BoxDecoration(
+                              color: Colors.lightBlue
+                                  .shade100, // Light blue for header row
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(8)),
+                            ),
+                            children: const [
+                              Padding(
+                                padding: EdgeInsets.all(6.0), // Reduced padding
+                                child: Text('Name',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors
+                                            .lightBlue)), // Reduced font size
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('R',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('B',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('4s',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('6s',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('SR',
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                            ],
+                          ),
+                          TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(
+                                    6.0), // Reduced padding
+                                child: Text('$batsman1Name*',
+                                    style: const TextStyle(
+                                        fontSize: 13)), // Reduced font size
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(batsman1Runs,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(batsman1Balls,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman1Index >= 0 &&
+                                            _activeBatsman1Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman1Index]
+                                                    ['fours'] as int? ??
+                                                0)
+                                            .toString()
+                                        : '0',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman1Index >= 0 &&
+                                            _activeBatsman1Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman1Index]
+                                                    ['sixes'] as int? ??
+                                                0)
+                                            .toString()
+                                        : '0',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman1Index >= 0 &&
+                                            _activeBatsman1Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman1Index]
+                                                    ['sr'] as double? ??
+                                                0.0)
+                                            .toStringAsFixed(1)
+                                        : '0.0',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                            ],
+                          ),
+                          TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(batsman2Name,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(batsman2Runs,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(batsman2Balls,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman2Index >= 0 &&
+                                            _activeBatsman2Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman2Index]
+                                                    ['fours'] as int? ??
+                                                0)
+                                            .toString()
+                                        : '0',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman2Index >= 0 &&
+                                            _activeBatsman2Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman2Index]
+                                                    ['sixes'] as int? ??
+                                                0)
+                                            .toString()
+                                        : '0',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBatsman2Index >= 0 &&
+                                            _activeBatsman2Index <
+                                                currentBattingTeamPlayers
+                                                    .length)
+                                        ? (currentBattingTeamPlayers[
+                                                        _activeBatsman2Index]
+                                                    ['sr'] as double? ??
+                                                0.0)
+                                            .toStringAsFixed(1)
+                                        : '0.0',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12), // Reduced spacing
+                // Bowler Info Table
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Bowler',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.lightBlue)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.all(4), // Reduced padding
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.lightBlue.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(2.5),
+                          1: FlexColumnWidth(1),
+                          2: FlexColumnWidth(1),
+                          3: FlexColumnWidth(1),
+                          4: FlexColumnWidth(1),
+                          5: FlexColumnWidth(1.5),
+                        },
+                        children: [
+                          TableRow(
+                            decoration: BoxDecoration(
+                              color: Colors.lightBlue
+                                  .shade100, // Light blue for header row
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(8)),
+                            ),
+                            children: const [
+                              Padding(
+                                padding: EdgeInsets.all(6.0), // Reduced padding
+                                child: Text('Name',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors
+                                            .lightBlue)), // Reduced font size
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('O',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('M',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('R',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('W',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Text('Econ',
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.lightBlue)),
+                              ),
+                            ],
+                          ),
+                          TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(bowlerName,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(bowlerOvers,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBowlerIndex >= 0 &&
+                                            _activeBowlerIndex <
+                                                currentBowlingTeamPlayers
+                                                    .length)
+                                        ? (currentBowlingTeamPlayers[
+                                                        _activeBowlerIndex]
+                                                    ['maidens'] as int? ??
+                                                0)
+                                            .toString()
+                                        : '0',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(bowlerRuns,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(bowlerWickets,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                    (_activeBowlerIndex >= 0 &&
+                                            _activeBowlerIndex <
+                                                currentBowlingTeamPlayers
+                                                    .length)
+                                        ? (currentBowlingTeamPlayers[
+                                                        _activeBowlerIndex]
+                                                    ['economy'] as double? ??
+                                                0.0)
+                                            .toStringAsFixed(1)
+                                        : '0.0',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12), // Reduced spacing
+                // All Balls Summary - Horizontal Scrollable
                 if (_ballEvents.isNotEmpty) ...[
-                  Text('Last 5 Balls:',
+                  Text('All Balls Commentary:',
                       style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15, // Reduced font size
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade900)), // Consistent blue
+                          color: Colors.lightBlue.shade800)),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8.0,
-                    runSpacing: 4.0,
-                    children: _ballEvents.reversed.take(5) // Take last 5 events
-                        .map((ball) {
-                      String result = '';
-                      Color ballColor = Colors.blue.shade200.withOpacity(
-                          0.7); // Default transparent blue ball color
-                      if (ball['wicket_taken']) {
-                        result = 'W';
-                        ballColor = Colors.red.shade700.withOpacity(
-                            0.8); // Keep red for wicket, add transparency
-                      } else if (ball['extra_runs'] > 0) {
-                        result =
-                            '${ball['extra_type'][0]}${ball['extra_runs']}';
-                        ballColor = Colors.orange.shade700.withOpacity(
-                            0.8); // Keep orange for extra, add transparency
-                      } else {
-                        result = ball['batsman_runs'].toString();
-                        if (ball['batsman_runs'] == 4)
-                          ballColor = Colors.blue.shade400.withOpacity(
-                              0.8); // Darker transparent blue for 4
-                        if (ball['batsman_runs'] == 6)
-                          ballColor = Colors.blue.shade600.withOpacity(
-                              0.9); // Even darker transparent blue for 6
-                      }
-                      return Chip(
-                        label: Text(result,
-                            style: TextStyle(
-                                color: Colors.blue.shade900,
-                                fontWeight: FontWeight.bold)),
-                        backgroundColor: ballColor,
-                      );
-                    }).toList(),
+                  SizedBox(
+                    height: 40, // Reduced height for the horizontal list
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _ballEvents.length,
+                      itemBuilder: (context, index) {
+                        final ball = _ballEvents[_ballEvents.length -
+                            1 -
+                            index]; // Iterate in reverse order
+                        String result = '';
+                        Color ballColor = Colors.lightBlue
+                            .shade200; // Default light blue ball color
+                        Color textColor = Colors.black;
+
+                        if (ball['wicket_taken'] == true) {
+                          result = 'W';
+                          ballColor = Colors.red.shade400;
+                          textColor = Colors.white;
+                        } else if ((ball['extra_runs'] ?? 0) > 0 &&
+                            ball['extra_type'] != 'Overthrow') {
+                          // Display actual total runs for the ball if extras (Wide penalty only now)
+                          result =
+                              '${ball['extra_type'][0]}${ball['extra_runs']}'; // Only show the 'extra penalty' amount
+                          ballColor = Colors.orange.shade400;
+                          textColor = Colors.white;
+                        } else {
+                          result = (ball['batsman_runs'] ?? 0).toString();
+                          ballColor = ((ball['batsman_runs'] ?? 0) == 4)
+                              ? Colors.lightBlue.shade400 // Medium blue for 4
+                              : ((ball['batsman_runs'] ?? 0) == 6)
+                                  ? Colors.green.shade400 // Green for 6
+                                  : Colors
+                                      .lightBlue.shade200; // Default light blue
+                          textColor = Colors.white; // White text for runs
+                        }
+
+                        // Determine if a separator is needed AFTER this ball's chip
+                        // Calculate original index to check for end of over
+                        final int legalBallsBeforeThis = _ballEvents
+                            .where((e) =>
+                                e['extra_type'] != 'Wide' &&
+                                e['extra_type'] != 'No Ball' &&
+                                _ballEvents.indexOf(e) <=
+                                    (_ballEvents.length - 1 - index))
+                            .length;
+                        bool isEndOfOverSeparator =
+                            legalBallsBeforeThis % 6 == 0 &&
+                                legalBallsBeforeThis > 0 &&
+                                (legalBallsBeforeThis) <
+                                    _totalLegalBallsBowledInInnings;
+
+                        return Row(
+                          children: [
+                            Chip(
+                              label: Text(result,
+                                  style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12)), // Reduced font size
+                              backgroundColor: ballColor,
+                              materialTapTargetSize: MaterialTapTargetSize
+                                  .shrinkWrap, // Make chip smaller
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 0), // Adjust chip padding
+                            ),
+                            const SizedBox(
+                                width: 4), // Small space between chips
+                            if (isEndOfOverSeparator) // Add separator after the chip
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6.0), // Reduced padding
+                                child: Container(
+                                  width: 2, // Width of the separator line
+                                  height: 20, // Height of the separator line
+                                  color: Colors
+                                      .grey.shade400, // Color of the separator
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12), // Reduced spacing
                 ],
+                // Player Change Buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -2079,14 +2818,15 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         onPressed: () async {
                           final List<Map<String, dynamic>> currentBattingTeam =
                               (_currentBattingTeamName ==
-                                      (widget.match['teamA'] ?? 'Team A'))
+                                      (widget.match['teamA']?.toString() ??
+                                          'Team A'))
                                   ? _teamABattingStats
                                   : _teamBBattingStats;
 
                           int? newBatsman1Index =
                               await _showPlayerSelectionDialog(
                             title:
-                                'Select On-Strike Batsman for ${_currentBattingTeamName}',
+                                'Select On-Strike Batsman for $_currentBattingTeamName',
                             players: currentBattingTeam,
                             excludedIndices: [_activeBatsman2Index],
                             isBatsman: true,
@@ -2099,7 +2839,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                           int? newBatsman2Index =
                               await _showPlayerSelectionDialog(
                             title:
-                                'Select Non-Strike Batsman for ${_currentBattingTeamName}',
+                                'Select Non-Strike Batsman for $_currentBattingTeamName',
                             players: currentBattingTeam,
                             excludedIndices: [_activeBatsman1Index],
                             isBatsman: true,
@@ -2110,16 +2850,18 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             });
                           }
                         },
-                        icon: const Icon(Icons.person_add, size: 18),
-                        label: const Text('Change Batsmen'),
+                        icon: const Icon(Icons.person_add,
+                            size: 16), // Reduced icon size
+                        label: const Text('Change Batsmen',
+                            style:
+                                TextStyle(fontSize: 13)), // Reduced font size
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade300
-                              .withOpacity(0.7), // Transparent blue button
-                          foregroundColor: Colors.blue.shade900,
+                          backgroundColor: Colors.blue.shade100,
+                          foregroundColor: Colors.blue.shade800,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                              horizontal: 10, vertical: 6), // Reduced padding
                         ),
                       ),
                     ),
@@ -2127,16 +2869,18 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: _changeBowler,
-                        icon: const Icon(Icons.person_add, size: 18),
-                        label: const Text('Change Bowler'),
+                        icon: const Icon(Icons.person_add,
+                            size: 16), // Reduced icon size
+                        label: const Text('Change Bowler',
+                            style:
+                                TextStyle(fontSize: 13)), // Reduced font size
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade300
-                              .withOpacity(0.7), // Transparent blue button
-                          foregroundColor: Colors.blue.shade900,
+                          backgroundColor: Colors.blue.shade100,
+                          foregroundColor: Colors.blue.shade800,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                              horizontal: 10, vertical: 6), // Reduced padding
                         ),
                       ),
                     ),
@@ -2152,38 +2896,35 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
   }
 
+  // Helper widget to build consistent-looking score buttons.
   Widget _buildScoreButton(String text, VoidCallback onPressed,
-      {bool isSecondary = false, bool isDanger = false}) {
-    Color buttonColor = Colors.blue.shade50
-        .withOpacity(0.9); // Default transparent blue button color
-    Color textColor = Colors.blue.shade900; // Default text color
-    if (isSecondary) {
-      buttonColor = Colors.blue.shade100
-          .withOpacity(0.8); // Lighter transparent blue for secondary
-      textColor = Colors.blue.shade900;
-    } else if (isDanger) {
-      buttonColor = Colors.red.shade700
-          .withOpacity(0.8); // Keep red for danger, add transparency
-      textColor = Colors.white;
-    }
+      {Color? customColor,
+      Color? textColor,
+      double fontSize = 16,
+      EdgeInsetsGeometry? padding}) {
+    Color buttonColor = customColor ?? Colors.white; // Default white
+    Color buttonTextColor = textColor ?? Colors.black; // Default black
 
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.all(4.0),
+        padding: const EdgeInsets.all(3.0), // Reduced padding around buttons
         child: ElevatedButton(
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: buttonColor,
-            foregroundColor: textColor,
+            foregroundColor: buttonTextColor,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius:
+                  BorderRadius.circular(8), // Slightly smaller rounded corners
             ),
-            padding: const EdgeInsets.symmetric(
-                vertical: 10), // Reduced vertical padding
-            textStyle: const TextStyle(
-              fontSize: 18,
+            padding: padding ??
+                const EdgeInsets.symmetric(
+                    vertical: 14), // Reduced vertical padding
+            textStyle: TextStyle(
+              fontSize: fontSize, // Use passed font size or default
               fontWeight: FontWeight.bold,
             ),
+            elevation: 2.0, // Reduced elevation
           ),
           child: Text(text),
         ),
@@ -2191,131 +2932,189 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
   }
 
+  // Builds the scoring input pad with various buttons for runs, extras, and wickets.
   Widget _buildScoringPad() {
     return Container(
-      color: Colors.blue.shade50
-          .withOpacity(0.6), // Light transparent blue for scoring pad
-      padding: const EdgeInsets.all(8.0),
+      color: Colors.lightBlue.shade600, // Background for the scoring pad
+      padding: const EdgeInsets.all(6.0), // Reduced overall padding
       child: Column(
         children: [
+          // First row of buttons (1, 2, 3, 4, 6) for runs
           Row(
             children: [
               _buildScoreButton('1', () {
-                _addRunsToScore(totalRunsAdded: 1, batsmanRuns: 1);
-                final List<Map<String, dynamic>> currentBattingTeam =
-                    (_currentBattingTeamName ==
-                            (widget.match['teamA'] ?? 'Team A'))
-                        ? _teamABattingStats
-                        : _teamBBattingStats;
-                currentBattingTeam[_activeBatsman1Index]
-                    ['balls']++; // Add ball to current striker
-                _incrementBallAndOverStats();
+                setState(() {
+                  final List<Map<String, dynamic>> currentBattingTeam =
+                      (_currentBattingTeamName ==
+                              (widget.match['teamA']?.toString() ?? 'Team A'))
+                          ? _teamABattingStats
+                          : _teamBBattingStats;
+                  if (_activeBatsman1Index >= 0 &&
+                      _activeBatsman1Index < currentBattingTeam.length) {
+                    currentBattingTeam[_activeBatsman1Index]['balls']++;
+                    _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+                  }
+                });
+                _addRuns(1, batsmanRuns: 1, extraRuns: 0, eventType: 'Single');
+                _processLegalBall(eventType: 'Single');
                 _recordBallEvent(
                   batsmanRuns: 1,
                   extraRuns: 0,
                   extraType: null,
                   wicketTaken: false,
+                  totalRunsOnBall: 1,
                 );
-                _swapStrike(); // Swap strike after all processing for odd runs
-                _checkWinCondition();
               }),
               _buildScoreButton('2', () {
-                _addRunsToScore(totalRunsAdded: 2, batsmanRuns: 2);
-                final List<Map<String, dynamic>> currentBattingTeam =
-                    (_currentBattingTeamName ==
-                            (widget.match['teamA'] ?? 'Team A'))
-                        ? _teamABattingStats
-                        : _teamBBattingStats;
-                currentBattingTeam[_activeBatsman1Index]
-                    ['balls']++; // Add ball to current striker
-                _incrementBallAndOverStats();
+                setState(() {
+                  final List<Map<String, dynamic>> currentBattingTeam =
+                      (_currentBattingTeamName ==
+                              (widget.match['teamA']?.toString() ?? 'Team A'))
+                          ? _teamABattingStats
+                          : _teamBBattingStats;
+                  if (_activeBatsman1Index >= 0 &&
+                      _activeBatsman1Index < currentBattingTeam.length) {
+                    currentBattingTeam[_activeBatsman1Index]['balls']++;
+                    _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+                  }
+                });
+                _addRuns(2, batsmanRuns: 2, extraRuns: 0, eventType: 'Double');
+                _processLegalBall(eventType: 'Double');
                 _recordBallEvent(
                   batsmanRuns: 2,
                   extraRuns: 0,
                   extraType: null,
                   wicketTaken: false,
+                  totalRunsOnBall: 2,
                 );
-                // No strike swap for even runs
-                _checkWinCondition();
               }),
               _buildScoreButton('3', () {
-                _addRunsToScore(totalRunsAdded: 3, batsmanRuns: 3);
-                final List<Map<String, dynamic>> currentBattingTeam =
-                    (_currentBattingTeamName ==
-                            (widget.match['teamA'] ?? 'Team A'))
-                        ? _teamABattingStats
-                        : _teamBBattingStats;
-                currentBattingTeam[_activeBatsman1Index]
-                    ['balls']++; // Add ball to current striker
-                _incrementBallAndOverStats();
+                setState(() {
+                  final List<Map<String, dynamic>> currentBattingTeam =
+                      (_currentBattingTeamName ==
+                              (widget.match['teamA']?.toString() ?? 'Team A'))
+                          ? _teamABattingStats
+                          : _teamBBattingStats;
+                  if (_activeBatsman1Index >= 0 &&
+                      _activeBatsman1Index < currentBattingTeam.length) {
+                    currentBattingTeam[_activeBatsman1Index]['balls']++;
+                    _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+                  }
+                });
+                _addRuns(3, batsmanRuns: 3, extraRuns: 0, eventType: 'Triple');
+                _processLegalBall(eventType: 'Triple');
                 _recordBallEvent(
                   batsmanRuns: 3,
                   extraRuns: 0,
                   extraType: null,
                   wicketTaken: false,
+                  totalRunsOnBall: 3,
                 );
-                _swapStrike(); // Swap strike after all processing for odd runs
-                _checkWinCondition();
               }),
               _buildScoreButton('4', () {
-                _addRunsToScore(
-                    totalRunsAdded: 4, batsmanRuns: 4, isBoundary: true);
-                final List<Map<String, dynamic>> currentBattingTeam =
-                    (_currentBattingTeamName ==
-                            (widget.match['teamA'] ?? 'Team A'))
-                        ? _teamABattingStats
-                        : _teamBBattingStats;
-                currentBattingTeam[_activeBatsman1Index]
-                    ['balls']++; // Add ball to current striker
-                _incrementBallAndOverStats();
+                setState(() {
+                  final List<Map<String, dynamic>> currentBattingTeam =
+                      (_currentBattingTeamName ==
+                              (widget.match['teamA']?.toString() ?? 'Team A'))
+                          ? _teamABattingStats
+                          : _teamBBattingStats;
+                  if (_activeBatsman1Index >= 0 &&
+                      _activeBatsman1Index < currentBattingTeam.length) {
+                    currentBattingTeam[_activeBatsman1Index]['balls']++;
+                    _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+                  }
+                });
+                _addRuns(4,
+                    batsmanRuns: 4,
+                    extraRuns: 0,
+                    isBoundary: true,
+                    eventType: 'Four');
+                _processLegalBall(eventType: 'Four');
                 _recordBallEvent(
                   batsmanRuns: 4,
                   extraRuns: 0,
                   extraType: null,
                   wicketTaken: false,
+                  totalRunsOnBall: 4,
                 );
-                // No strike swap for even runs
-                _checkWinCondition();
               }),
               _buildScoreButton('6', () {
-                _addRunsToScore(
-                    totalRunsAdded: 6,
+                setState(() {
+                  final List<Map<String, dynamic>> currentBattingTeam =
+                      (_currentBattingTeamName ==
+                              (widget.match['teamA']?.toString() ?? 'Team A'))
+                          ? _teamABattingStats
+                          : _teamBBattingStats;
+                  if (_activeBatsman1Index >= 0 &&
+                      _activeBatsman1Index < currentBattingTeam.length) {
+                    currentBattingTeam[_activeBatsman1Index]['balls']++;
+                    _updateStrikeRate(currentBattingTeam[_activeBatsman1Index]);
+                  }
+                });
+                _addRuns(6,
                     batsmanRuns: 6,
+                    extraRuns: 0,
                     isBoundary: true,
-                    isSix: true);
-                final List<Map<String, dynamic>> currentBattingTeam =
-                    (_currentBattingTeamName ==
-                            (widget.match['teamA'] ?? 'Team A'))
-                        ? _teamABattingStats
-                        : _teamBBattingStats;
-                currentBattingTeam[_activeBatsman1Index]
-                    ['balls']++; // Add ball to current striker
-                _incrementBallAndOverStats();
+                    eventType: 'Six');
+                _processLegalBall(eventType: 'Six');
                 _recordBallEvent(
                   batsmanRuns: 6,
                   extraRuns: 0,
                   extraType: null,
                   wicketTaken: false,
+                  totalRunsOnBall: 6,
                 );
-                // No strike swap for even runs
-                _checkWinCondition();
               }),
             ],
           ),
+          // Second row of buttons (LB, Bye, Wide, NB, Dot) for extras and dot ball
           Row(
             children: [
-              _buildScoreButton('LB', _handleLegByes),
-              _buildScoreButton('Bye', _handleByes),
-              _buildScoreButton('Wide', _handleWide),
-              _buildScoreButton('NB', _handleNoBall),
-              _buildScoreButton('Dot', _addDotBall, isSecondary: true),
+              _buildScoreButton('LB', _handleLegByes,
+                  customColor: Colors.lightBlue.shade200,
+                  textColor: Colors.black,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('Bye', _handleByes,
+                  customColor: Colors.lightBlue.shade200,
+                  textColor: Colors.black,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('Wide', _handleWide,
+                  customColor: Colors.lightBlue.shade200,
+                  textColor: Colors.black,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('NB', _handleNoBall,
+                  customColor: Colors.lightBlue.shade200,
+                  textColor: Colors.black,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('Dot', _addBall, // Calls the _addBall method
+                  customColor: Colors.lightBlue.shade200,
+                  textColor: Colors.black,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
             ],
           ),
+          // Third row of buttons (Overthrow, Out, End Innings) for special events
           Row(
             children: [
-              _buildScoreButton('Out', _addWicket, isDanger: true),
-              _buildScoreButton('Undo', _undoLastAction, isSecondary: true),
-              _buildScoreButton('End Innings', _endInnings, isDanger: true),
+              _buildScoreButton('Overthrow', _handleOverthrow,
+                  customColor: Colors.lightBlue.shade400,
+                  textColor: Colors.white,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('Out', _addWicket,
+                  customColor: Colors.red.shade700,
+                  textColor: Colors.white,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
+              _buildScoreButton('End Innings', _endInnings,
+                  customColor: Colors.orange.shade700,
+                  textColor: Colors.white,
+                  fontSize: 14,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
             ],
           ),
         ],
@@ -2325,32 +3124,28 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
   // --- Scorecard Tab View (dynamic data) ---
   Widget _buildScorecardTabView() {
-    // Determine which team's stats to show based on the currently selected tab
-    // These lists hold the overall stats, not specific to current innings.
-    // The scorecard should always show the full batting/bowling lists for each team.
-
     return Column(
       children: [
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50.withOpacity(
-                0.5), // Light transparent blue for tab bar background
+            color:
+                Colors.lightBlue.shade100, // Light blue for tab bar background
             borderRadius: BorderRadius.circular(25),
           ),
           child: TabBar(
             controller: _scorecardTeamTabController,
-            labelColor: Colors.blue.shade900, // Darker blue for selected label
-            unselectedLabelColor: Colors.blue.shade500
-                .withOpacity(0.7), // Mid transparent blue for unselected label
+            labelColor:
+                Colors.lightBlue.shade900, // Darker blue for selected label
+            unselectedLabelColor:
+                Colors.lightBlue.shade600, // Mid blue for unselected label
             indicator: BoxDecoration(
               borderRadius: BorderRadius.circular(25),
-              color: Colors.blue.shade300
-                  .withOpacity(0.7), // Mid transparent blue for indicator
+              color: Colors.lightBlue.shade300, // Light blue for indicator
             ),
             tabs: [
-              Tab(text: widget.match['teamA'] ?? 'Team A'),
-              Tab(text: widget.match['teamB'] ?? 'Team B'),
+              Tab(text: widget.match['teamA']?.toString() ?? 'Team A'),
+              Tab(text: widget.match['teamB']?.toString() ?? 'Team B'),
             ],
           ),
         ),
@@ -2360,18 +3155,20 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             children: [
               // Team A's scorecard view: Team A Batting, Team B Bowling
               _buildTeamScorecard(
-                widget.match['teamA'] ?? 'Team A', // Batting Team Name
+                widget.match['teamA']?.toString() ??
+                    'Team A', // Batting Team Name
                 _teamABattingStats, // Team A's batting stats
                 _teamBBowlingStats, // Team B's bowling stats against Team A
-                widget.match['teamB'] ??
+                widget.match['teamB']?.toString() ??
                     'Team B', // Bowling Team Name for title
               ),
               // Team B's scorecard view: Team B Batting, Team A Bowling
               _buildTeamScorecard(
-                widget.match['teamB'] ?? 'Team B', // Batting Team Name
+                widget.match['teamB']?.toString() ??
+                    'Team B', // Batting Team Name
                 _teamBBattingStats, // Team B's batting stats
                 _teamABowlingStats, // Team A's bowling stats against Team B
-                widget.match['teamA'] ??
+                widget.match['teamA']?.toString() ??
                     'Team A', // Bowling Team Name for title
               ),
             ],
@@ -2381,6 +3178,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     );
   }
 
+  // Builds a detailed scorecard for a given team, including batting, bowling, and over-by-over summaries.
   Widget _buildTeamScorecard(
     String battingTeamName,
     List<Map<String, dynamic>> battingStats,
@@ -2397,7 +3195,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.blue)), // Consistent blue
+                  color: Colors.lightBlue)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -2406,8 +3204,10 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             itemBuilder: (context, index) {
               final player = battingStats[index];
               return Card(
-                elevation: 0.5,
+                elevation: 2.0, // Increased elevation
                 margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)), // Rounded corners
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
@@ -2417,15 +3217,19 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            player['name'] +
-                                (player['dismissal'] == 'not out' ? '*' : ''),
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            (player['name']?.toString() ?? 'N/A') +
+                                ((player['dismissal'] == 'not out') ? '*' : ''),
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.lightBlue.shade800),
                           ),
                           Text(
-                            'R: ${player['runs']} (B: ${player['balls']})',
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            'R: ${player['runs'] ?? 0} (B: ${player['balls'] ?? 0})',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.lightBlue.shade800),
                           ),
                         ],
                       ),
@@ -2433,32 +3237,33 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         children: [
                           Text(
                             '4s: ',
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(color: Colors.grey.shade600),
                           ),
                           Text(
-                            '${player['fours']}',
+                            '${player['fours'] ?? 0}',
                             style: TextStyle(
-                                color: Colors.blue.shade700.withOpacity(0.9),
+                                color: Colors.lightBlue.shade700,
                                 fontWeight: FontWeight.bold),
                           ),
                           Text(
                             ', 6s: ',
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(color: Colors.grey.shade600),
                           ),
                           Text(
-                            '${player['sixes']}',
+                            '${player['sixes'] ?? 0}',
                             style: TextStyle(
-                                color: Colors.blue.shade700.withOpacity(0.9),
+                                color: Colors.lightBlue.shade700,
                                 fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            ', SR: ${player['sr'].toStringAsFixed(2)}',
-                            style: const TextStyle(color: Colors.grey),
+                            ', SR: ${(player['sr'] as double? ?? 0.0).toStringAsFixed(2)}',
+                            style: TextStyle(color: Colors.grey.shade600),
                           ),
                         ],
                       ),
-                      Text('Dismissal: ${player['dismissal']}',
-                          style: const TextStyle(color: Colors.grey)),
+                      Text(
+                          'Dismissal: ${player['dismissal']?.toString() ?? 'N/A'}',
+                          style: TextStyle(color: Colors.lightBlue.shade600)),
                     ],
                   ),
                 ),
@@ -2466,20 +3271,28 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             },
           ),
           Card(
-            elevation: 0.5,
+            elevation: 2.0, // Increased elevation
             margin: const EdgeInsets.symmetric(vertical: 4),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)), // Rounded corners
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Extras',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.lightBlue.shade800),
                   ),
                   Text(
                     _extras.toString(),
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.lightBlue.shade800),
                   ),
                 ],
               ),
@@ -2492,7 +3305,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.blue)), // Consistent blue
+                  color: Colors.lightBlue)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -2501,8 +3314,10 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             itemBuilder: (context, index) {
               final player = bowlingStats[index];
               return Card(
-                elevation: 0.5,
+                elevation: 2.0, // Increased elevation
                 margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)), // Rounded corners
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
@@ -2512,19 +3327,24 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            player['name'],
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            player['name']?.toString() ?? 'N/A',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.lightBlue.shade800),
                           ),
                           Text(
-                            'O: ${player['overs'].toStringAsFixed(1)}, M: ${player['maidens']}',
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                            'O: ${(player['overs'] as double? ?? 0.0).toStringAsFixed(1)}, M: ${player['maidens'] ?? 0}',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.lightBlue.shade800),
                           ),
                         ],
                       ),
                       Text(
-                          'R: ${player['runs']}, W: ${player['wickets']}, Econ: ${player['economy'].toStringAsFixed(2)}'),
+                          'R: ${player['runs'] ?? 0}, W: ${player['wickets'] ?? 0}, Econ: ${(player['economy'] as double? ?? 0.0).toStringAsFixed(2)}',
+                          style: TextStyle(color: Colors.lightBlue.shade600)),
                     ],
                   ),
                 ),
@@ -2538,7 +3358,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.blue)), // Consistent blue
+                  color: Colors.lightBlue)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -2547,78 +3367,31 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             itemBuilder: (context, index) {
               final over = _overByOverSummary[index];
               return Card(
-                elevation: 1,
+                elevation: 2.0, // Increased elevation
                 margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)), // Rounded corners
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blue.shade50
-                        .withOpacity(0.5), // Light transparent blue
-                    child: Text('${over['over']}',
+                    backgroundColor: Colors.lightBlue.shade200, // Light blue
+                    child: Text('${over['over'] ?? 0}',
                         style: TextStyle(
-                            color: Colors.blue.shade800)), // Darker blue text
+                            color:
+                                Colors.lightBlue.shade900)), // Darker blue text
                   ),
-                  title: Text('Runs: ${over['runs']}',
-                      style: const TextStyle(fontWeight: FontWeight.w500)),
-                  trailing: Text('Wickets: ${over['wickets']}',
-                      style: const TextStyle(fontWeight: FontWeight.w500)),
+                  title: Text('Runs: ${over['runs'] ?? 0}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.lightBlue.shade800)),
+                  trailing: Text('Wickets: ${over['wickets'] ?? 0}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.lightBlue.shade800)),
                 ),
               );
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBallsView() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Ball-by-Ball Commentary',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Colors.blue)), // Consistent blue
-            const SizedBox(height: 8),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _ballEvents.length,
-              reverse: true, // Show latest ball first
-              itemBuilder: (context, index) {
-                final ball = _ballEvents[index];
-                String ballDescription = '${ball['over_display']} ';
-                if (ball['wicket_taken']) {
-                  ballDescription += 'WICKET! ${ball['dismissal']}';
-                } else if (ball['extra_runs'] > 0) {
-                  ballDescription +=
-                      '${ball['extra_runs']} ${ball['extra_type']}';
-                } else {
-                  ballDescription +=
-                      '${ball['batsman_runs']} run${ball['batsman_runs'] != 1 ? 's' : ''}';
-                }
-                ballDescription +=
-                    ' by ${ball['batsman_name']} (Bowled by ${ball['bowler_name']}) - ${ball['total_score_after_ball']}';
-
-                return Card(
-                  elevation: 0.5,
-                  margin:
-                      const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      ballDescription,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

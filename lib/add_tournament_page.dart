@@ -426,7 +426,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       if (widget.isUpdate && widget.tournamentId != null)
         "id": widget.tournamentId,
       "name": _tournamentNameController.text,
-      "place": _placeController.text,
+      "location": _placeController.text,
       "admins": _adminControllers.map((e) => e.text).toList(),
       "numberOfTeams": selectedTeamCount,
       "teamWalletBalance": parseOrZero(_walletBalanceController.text),
@@ -434,7 +434,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       "ownerName": _ownerNameController.text,
       "basePrice": parseOrZero(_basePriceController.text),
       "duration": parseOrZero(_durationController.text),
-      "sport": selectedSport,
+      "sportType": selectedSport,
       "matchDetail": parseOrZero(_matchDetailController.text),
     };
 

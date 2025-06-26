@@ -84,6 +84,91 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
     }
   }
 
+  Future<void> fetchTournamentsV1() async {
+    // Simulated delay to mimic async behavior
+    await Future.delayed(Duration(milliseconds: 500));
+
+    final List<Map<String, dynamic>> staticData = [
+      {
+        "id": 1,
+        "name": "IPL",
+        "startDate": "2025-05-25T00:00:00",
+        "endDate": "2026-05-25T00:00:00",
+        "location": "Mumbai",
+        "sportType": "Cricket",
+        "createdAt": "2025-05-25T08:55:06.826038",
+        "updatedAt": "2025-05-25T08:55:06.986297",
+        "numberOfTeams": null,
+        "teamWalletBalance": null,
+        "playersPerTeam": null,
+        "ownerName": null,
+        "basePrice": null,
+        "duration": null,
+        "matchDetail": null
+      },
+      {
+        "id": 2,
+        "name": "PPL",
+        "startDate": "2025-05-25T00:00:00",
+        "endDate": "2025-05-25T00:00:00",
+        "location": "Karachi",
+        "sportType": "Cricket",
+        "createdAt": "2025-05-25T09:31:23.507012",
+        "updatedAt": "2025-05-25T09:31:23.507013",
+        "numberOfTeams": null,
+        "teamWalletBalance": null,
+        "playersPerTeam": null,
+        "ownerName": null,
+        "basePrice": null,
+        "duration": null,
+        "matchDetail": null
+      },
+      {
+        "id": 3,
+        "name": "BBL",
+        "startDate": "2025-05-25T00:00:00",
+        "endDate": "2025-05-25T00:00:00",
+        "location": "Sydney",
+        "sportType": "Cricket",
+        "createdAt": "2025-05-25T09:51:13.847952",
+        "updatedAt": "2025-05-25T09:51:13.848042",
+        "numberOfTeams": null,
+        "teamWalletBalance": null,
+        "playersPerTeam": null,
+        "ownerName": null,
+        "basePrice": null,
+        "duration": null,
+        "matchDetail": null
+      },
+    ];
+
+    setState(() {
+      _allTournaments = staticData.map<Map<String, dynamic>>((t) {
+        return {
+          'id': t['id'],
+          'name': t['name'],
+          'startDate': t['startDate'],
+          'sportType': t['sportType'],
+          'endDate': t['endDate'],
+          'location': t['location'],
+          'createdAt': t['createdAt'],
+          'updatedAt': t['updatedAt'],
+          'numberOfTeams': t['numberOfTeams'],
+          'teamWalletBalance': t['teamWalletBalance'],
+          'playersPerTeam': t['playersPerTeam'],
+          'ownerName': t['ownerName'],
+          'basePrice': t['basePrice'],
+          'duration': t['duration'],
+          'matchDetail': t['matchDetail'],
+          'tournament': t,
+        };
+      }).toList();
+
+      _filteredTournaments = List.from(_allTournaments);
+      _isLoading = false;
+    });
+  }
+
   String formatDate(String isoDate) {
     try {
       final date = DateTime.parse(isoDate);
@@ -161,7 +246,8 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => TournamentDetailPage(
-                                          tournament: tournament['tournament']),
+                                          tournament: tournament['tournament'],
+                                          matchId: tournament['id']),
                                     ),
                                   );
                                 },

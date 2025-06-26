@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'match_detail_page.dart';
+import 'match_detail_page.dart'; // Assuming this file exists for cricket
+import 'RacquetSportApp.dart'; // Import RacquetSportApp for badminton/pickleball navigation
 import 'players_page.dart';
 import 'add_tournament_page.dart'; // Make sure this exists
 
 class TournamentDetailPage extends StatelessWidget {
   final Map<String, dynamic> tournament;
-  final bool isAdmin = true; // You can pass this as a parameter too
+  final int matchId;
+  final bool isAdmin; // You can pass this as a parameter too
 
-  const TournamentDetailPage({super.key, required this.tournament});
+  const TournamentDetailPage(
+      {super.key,
+      required this.tournament,
+      required this.matchId,
+      this.isAdmin = true}); // Default isAdmin to true for testing
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +45,10 @@ class TournamentDetailPage extends StatelessWidget {
         body: TabBarView(
           children: [
             AboutTab(tournament: tournament, isAdmin: isAdmin),
-            const FixturesTab(),
+            // Pass the entire tournament map to FixturesTab
+            FixturesTab(
+                tournament:
+                    tournament), // matchId no longer needed directly here
             const TeamsTab(),
             const PointsTableTab(),
           ],
@@ -61,6 +70,7 @@ class AboutTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         InfoTile(title: 'Tournament Name', value: tournament['name']),
+        // Ensure 'sportType' is fetched correctly
         InfoTile(title: 'Sport Type', value: tournament['sportType'] ?? 'N/A'),
         InfoTile(title: 'Start Date', value: tournament['startDate'] ?? 'N/A'),
         InfoTile(title: 'End Date', value: tournament['endDate'] ?? 'N/A'),
@@ -118,25 +128,41 @@ class InfoTile extends StatelessWidget {
 }
 
 class FixturesTab extends StatefulWidget {
-  const FixturesTab({super.key});
+  final Map<String, dynamic> tournament; // Added to receive tournament data
+
+  const FixturesTab(
+      {super.key, required this.tournament}); // Updated constructor
 
   @override
   State<FixturesTab> createState() => _FixturesTabState();
 }
 
 class _FixturesTabState extends State<FixturesTab> {
+  // Sample data for fixtures. In a real app, this would likely come from a database.
   final List<Map<String, String>> fixtures = [
     {
-      'match': 'Team A vs Team B',
+      'matchId': '1', // Added a dummy ID for now
+      'teamA': 'Team India', // Changed to separate team names
+      'teamB': 'Team South Africa',
       'date': '2025-05-18',
       'venue': 'Stadium A',
       'score': '122/6 (20) - 121/8 (20)',
     },
     {
-      'match': 'Team C vs Team D',
+      'matchId': '2',
+      'teamA': 'Team C',
+      'teamB': 'Team D',
       'date': '2025-05-27',
       'venue': 'Stadium B',
       'score': '',
+    },
+    {
+      'matchId': '3',
+      'teamA': 'Player 1',
+      'teamB': 'Player 2',
+      'date': '2025-06-01',
+      'venue': 'Court 1',
+      'score': '21-15, 21-18',
     },
   ];
 
@@ -155,7 +181,8 @@ class _FixturesTabState extends State<FixturesTab> {
   }
 
   Future<void> _showAddFixtureDialog() async {
-    final matchController = TextEditingController();
+    final teamANameController = TextEditingController(); // New controller
+    final teamBNameController = TextEditingController(); // New controller
     final venueController = TextEditingController();
     DateTime? selectedDate;
 
@@ -166,11 +193,17 @@ class _FixturesTabState extends State<FixturesTab> {
           title: const Text('Add Fixture'),
           content: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: matchController,
+                  controller: teamANameController,
                   decoration: const InputDecoration(
-                      labelText: 'Match (e.g. Team A vs Team B)'),
+                      labelText: 'Team A Name'), // New field
+                ),
+                TextField(
+                  controller: teamBNameController,
+                  decoration: const InputDecoration(
+                      labelText: 'Team B Name'), // New field
                 ),
                 TextField(
                   controller: venueController,
@@ -187,11 +220,14 @@ class _FixturesTabState extends State<FixturesTab> {
                     );
                     if (pickedDate != null) {
                       selectedDate = pickedDate;
-                      setState(
-                          () {}); // Refresh to show selected date if you want
+                      if (mounted) {
+                        setState(() {});
+                      }
                     }
                   },
-                  child: const Text("Select Date"),
+                  child: Text(selectedDate == null
+                      ? "Select Date"
+                      : formatter.format(selectedDate!)),
                 ),
               ],
             ),
@@ -202,17 +238,27 @@ class _FixturesTabState extends State<FixturesTab> {
                 child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
-                if (matchController.text.isNotEmpty &&
+                if (teamANameController.text.isNotEmpty &&
+                    teamBNameController.text.isNotEmpty &&
                     venueController.text.isNotEmpty &&
                     selectedDate != null) {
                   final newFixture = {
-                    'match': matchController.text,
+                    'matchId': (fixtures.length + 1)
+                        .toString(), // Simple dummy ID generation
+                    'teamA': teamANameController.text,
+                    'teamB': teamBNameController.text,
                     'venue': venueController.text,
                     'date': formatter.format(selectedDate!),
-                    'score': '',
+                    'score': '', // Score can be updated later
                   };
                   addFixture(newFixture);
                   Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('Please fill all fields and select a date.')),
+                  );
                 }
               },
               child: const Text('Save'),
@@ -226,6 +272,9 @@ class _FixturesTabState extends State<FixturesTab> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    // Get the sport type from the tournament object passed to this widget
+    final String sportType =
+        widget.tournament['sportType']?.toLowerCase() ?? 'unknown';
 
     return Scaffold(
       body: ListView.builder(
@@ -243,12 +292,40 @@ class _FixturesTabState extends State<FixturesTab> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MatchDetailPage(match: match),
-                  ),
-                );
+                // Conditional redirection based on sportType
+                if (sportType == 'cricket') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MatchDetailPage(
+                        matchId: int.parse(
+                            match['matchId']!), // Pass dynamic matchId
+                        match: {
+                          'match': '${match['teamA']} vs ${match['teamB']}',
+                          'teamA': match['teamA'], // Pass dynamic team names
+                          'teamB': match['teamB'], // Pass dynamic team names
+                        },
+                      ),
+                    ),
+                  );
+                } else if (sportType == 'badminton' ||
+                    sportType == 'pickleball' ||
+                    sportType == 'throwball' ||
+                    sportType == 'football') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const RacquetSportApp(), // Navigates to the root of your racquet sport app
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Navigation not defined for $sportType fixtures.')),
+                  );
+                }
               },
               leading: Icon(
                 isUpcoming ? Icons.schedule : Icons.check_circle,
@@ -256,7 +333,7 @@ class _FixturesTabState extends State<FixturesTab> {
                 size: 32,
               ),
               title: Text(
-                match['match']!,
+                '${match['teamA']} vs ${match['teamB']}', // Display dynamic team names
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Column(
@@ -266,7 +343,7 @@ class _FixturesTabState extends State<FixturesTab> {
                   Text("📍 ${match['venue']}"),
                   Text(isUpcoming
                       ? "Status: Upcoming"
-                      : "🏏 Score: ${match['score']}"),
+                      : "📊 Score: ${match['score']}"),
                 ],
               ),
               trailing: IconButton(
@@ -276,7 +353,8 @@ class _FixturesTabState extends State<FixturesTab> {
                     context: context,
                     builder: (ctx) => AlertDialog(
                       title: const Text('Delete Fixture'),
-                      content: Text('Delete "${match['match']}"?'),
+                      content: Text(
+                          'Delete "${match['teamA']} vs ${match['teamB']}"?'), // Dynamic team names
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(),
