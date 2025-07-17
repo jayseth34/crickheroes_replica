@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
-import 'package:signalr_netcore/signalr_client.dart'; // Import the SignalR client
 import 'dart:async'; // Required for Future and async operations
 import 'package:http/http.dart' as http; // Import for HTTP requests
 import 'dart:convert'; // For JSON encoding/decoding
+import 'package:signalr_core/signalr_core.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,8 +32,8 @@ class MyApp extends StatelessWidget {
           'teamA': 'Team India',
           'teamB': 'Team South Africa',
         },
-        matchId: 1,
-      ), // Pass dummy match data
+        matchId: 1, // Pass dummy match data, for SignalR connection
+      ),
     );
   }
 }
@@ -42,8 +42,8 @@ class MatchDetailPage extends StatefulWidget {
   final Map<String, dynamic> match;
   final int matchId;
 
-  const MatchDetailPage(
-      {super.key, required this.match, required this.matchId});
+  const MatchDetailPage({Key? key, required this.match, required this.matchId})
+      : super(key: key);
 
   @override
   State<MatchDetailPage> createState() => _MatchDetailPageState();
@@ -117,14 +117,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     _teamABowlingStats = _initializeBowlingStats();
     _teamBBowlingStats = _initializeBowlingStatsB(); // Separate for Team B
 
-    // Initialize SignalR connection.
-    _hubConnection = HubConnectionBuilder()
-        .withUrl(
-            "https://sportsdecor.somee.com/scoreHub") // Use localhost for local API
-        .build();
-
-    // Start SignalR connection and listen for updates
-    _startSignalR();
+    // Initialize and connect to SignalR
+    _initSignalR();
 
     // Perform initial setup like batting team selection after the first frame
     // to ensure `context` is available.
@@ -463,72 +457,133 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     ];
   }
 
-  // Method to start the SignalR connection and set up listeners
-  Future<void> _startSignalR() async {
+  // Method to initialize and connect to SignalR
+  Future<void> _initSignalR() async {
+    const hubUrl =
+        "https://sportsdecor.somee.com/scoreHub"; // Replace with actual URL
+
+    _hubConnection = HubConnectionBuilder()
+        .withUrl(hubUrl)
+        // .configureLogging(LogLevel.information) // ✅ lowercase for enum
+        .build();
+
+    _hubConnection.onclose((error) {
+      print("SignalR Connection Closed: $error");
+    });
+
     try {
-      if (_hubConnection.state != HubConnectionState.Connected) {
-        await _hubConnection.start();
-        debugPrint("Connected to SignalR hub");
-      }
+      await _hubConnection.start();
+      print("Connected to SignalR hub");
 
-      // Ensure matchId is always an int
-      final int matchId = widget.matchId as int? ?? 0;
-      print(matchId);
-      if (matchId == 0) {
-        debugPrint("Error: matchId is not valid for SignalR group.");
-        return;
-      }
+      await _hubConnection.invoke("JoinMatchGroup", args: [widget.matchId]);
+      print("Joined match group: ${widget.matchId}");
 
-      // Join match group
-      await _hubConnection.invoke("JoinMatchGroup",
-          args: [matchId.toString()]); // SignalR might expect string ID
-      debugPrint("Joined match group: $matchId");
+      _hubConnection.on("ReceiveScoreUpdate", (scoreData) {
+        print("Live Score Update Received: $scoreData");
 
-      // Listen to score updates
-      _hubConnection.on("ReceiveScoreUpdate", (data) {
-        debugPrint("SignalR Score Update: ${data.toString()}");
-        if (data != null && data.isNotEmpty) {
-          final Map<String, dynamic> scoreData =
-              data[0] as Map<String, dynamic>;
-          // Only update if the update is for the currently tracked batting team
-          // This prevents conflicts if multiple clients are scoring different innings
-          if (scoreData['teamId'] == _currentBattingTeamId) {
-            _updateLiveScoreFromSignalR(scoreData);
-          }
+        if (scoreData != null && scoreData.isNotEmpty) {
+          final data = scoreData[0] as Map<String, dynamic>;
+          _updateLiveScoreFromSignalR(data);
         }
       });
     } catch (e) {
-      debugPrint("Error connecting to SignalR or joining group: $e");
-      // Optionally show a user-friendly message or retry connection
+      print("Error connecting to SignalR hub: $e");
     }
   }
 
   // Method to update UI state based on received SignalR score data
-  // This assumes the SignalR data structure is similar to the GET /getScore response.
+  // This method now expects a comprehensive scoreData object and updates all relevant state.
   void _updateLiveScoreFromSignalR(Map<String, dynamic> scoreData) {
     setState(() {
-      _currentRuns = scoreData['runs'] ?? _currentRuns;
-      _currentWickets = scoreData['wickets'] ?? _currentWickets;
+      // Update current innings data
+      final currentInningsData =
+          scoreData['currentInnings'] as Map<String, dynamic>?;
+      if (currentInningsData != null) {
+        _currentRuns = currentInningsData['runs'] ?? _currentRuns;
+        _currentWickets = currentInningsData['wickets'] ?? _currentWickets;
+        _totalLegalBallsBowledInInnings =
+            currentInningsData['totalLegalBallsBowledInInnings'] ??
+                _totalLegalBallsBowledInInnings;
+        _ballsInCurrentOver =
+            currentInningsData['ballsInCurrentOver'] ?? _ballsInCurrentOver;
+        _extras = currentInningsData['extras'] ?? _extras;
+        _partnershipRuns =
+            currentInningsData['partnershipRuns'] ?? _partnershipRuns;
+        _partnershipBalls =
+            currentInningsData['partnershipBalls'] ?? _partnershipBalls;
+        _isFirstInnings =
+            currentInningsData['isFirstInnings'] ?? _isFirstInnings;
+        _firstInningsRuns =
+            currentInningsData['firstInningsRuns'] ?? _firstInningsRuns;
+        _firstInningsWickets =
+            currentInningsData['firstInningsWickets'] ?? _firstInningsWickets;
+        _targetScore = currentInningsData['targetScore'] ?? _targetScore;
+        _currentBattingTeamName =
+            currentInningsData['currentBattingTeamName'] ??
+                _currentBattingTeamName;
+        _currentBowlingTeamName =
+            currentInningsData['currentBowlingTeamName'] ??
+                _currentBowlingTeamName;
+        _currentBattingTeamId =
+            currentInningsData['currentBattingTeamId'] ?? _currentBattingTeamId;
+        _currentBowlingTeamId =
+            currentInningsData['currentBowlingTeamId'] ?? _currentBowlingTeamId;
+      }
 
-      // The `overs` from SignalR is likely completed overs (like the GET API).
-      // We need to re-calculate _totalLegalBallsBowledInInnings to match.
-      int receivedOvers = scoreData['overs'] ?? 0;
-      // If the backend also sends a 'ballsInCurrentOver' from 1-6, use it.
-      // Otherwise, we can only update to the start of the next over.
-      // Assuming 'balls' is not sent via GET/SignalR and needs to be handled carefully.
-      // For now, let's assume 'overs' from SignalR means full overs, so we snap to that.
-      _totalLegalBallsBowledInInnings = receivedOvers * 6;
-      _ballsInCurrentOver = 0; // Reset as we snapped to completed overs.
+      // Update team A stats
+      final teamAStats = scoreData['teamAStats'] as Map<String, dynamic>?;
+      if (teamAStats != null) {
+        _teamABattingStats = (teamAStats['batting'] as List<dynamic>?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            _teamABattingStats;
+        _teamABowlingStats = (teamAStats['bowling'] as List<dynamic>?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            _teamABowlingStats;
+      }
 
-      // These might not be sent by the backend's `getScore` or `update`
-      // For a truly real-time score, the backend should send the full state.
-      // We will leave them as is for now, or you can request your backend to send them.
-      // _extras = scoreData['extras'] ?? _extras;
-      // _partnershipRuns = scoreData['partnershipRuns'] ?? _partnershipRuns;
-      // _partnershipBalls = scoreData['partnershipBalls'] ?? _partnershipBalls;
+      // Update team B stats
+      final teamBStats = scoreData['teamBStats'] as Map<String, dynamic>?;
+      if (teamBStats != null) {
+        _teamBBattingStats = (teamBStats['batting'] as List<dynamic>?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            _teamBBattingStats;
+        _teamBBowlingStats = (teamBStats['bowling'] as List<dynamic>?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            _teamBBowlingStats;
+      }
+
+      // Update over by over summary
+      _overByOverSummary = (scoreData['overByOverSummary'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          _overByOverSummary;
+
+      // Update ball events
+      _ballEvents = (scoreData['ballEvents'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          _ballEvents;
+
+      // Update active players based on names from received data (requires finding index)
+      // This is a simplified approach. For robustness, you might want to send player IDs.
+      _activeBatsman1Index = _teamABattingStats.indexWhere((p) =>
+          p['name'] ==
+          (currentInningsData?['activeBatsman1Name'] ??
+              'N/A')); // Assuming names are unique
+      if (_activeBatsman1Index == -1) _activeBatsman1Index = 0; // Default
+      _activeBatsman2Index = _teamABattingStats.indexWhere((p) =>
+          p['name'] == (currentInningsData?['activeBatsman2Name'] ?? 'N/A'));
+      if (_activeBatsman2Index == -1) _activeBatsman2Index = 1; // Default
+      _activeBowlerIndex = _teamABowlingStats.indexWhere((p) =>
+          p['name'] == (currentInningsData?['activeBowlerName'] ?? 'N/A'));
+      if (_activeBowlerIndex == -1) _activeBowlerIndex = 0; // Default
 
       debugPrint(
-          "UI updated from SignalR: $_currentRuns/$_currentWickets in ${receivedOvers} overs");
+          "UI updated from SignalR: $_currentRuns/$_currentWickets in ${_currentOversDisplay.toStringAsFixed(1)} overs");
     });
   }
 
@@ -538,30 +593,81 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     bool isMatchOver = false,
   }) async {
     final int matchId = widget.matchId as int? ?? 0;
-    final int teamId = _currentBattingTeamId;
 
-    // Calculate overs and balls for the API
-    // The API wants 'overs' as completed overs (int) and 'balls' as the ball number in the current over (1-6).
-    int apiOvers = _totalLegalBallsBowledInInnings ~/ 6;
-    int apiBalls = _totalLegalBallsBowledInInnings % 6;
+    // Determine which team's stats belong to Team A and Team B in the payload
+    // based on who was selected to bat first. This ensures backend consistency.
+    List<Map<String, dynamic>> teamABatting = [];
+    List<Map<String, dynamic>> teamBBatting = [];
+    List<Map<String, dynamic>> teamABowling = [];
+    List<Map<String, dynamic>> teamBBowling = [];
 
-    // If apiBalls is 0 and we have bowled some balls, it means the 6th ball of the current over just completed.
-    if (apiBalls == 0 && _totalLegalBallsBowledInInnings > 0) {
-      apiBalls = 6;
-      // apiOvers is already correct because integer division `~/ 6` will give the completed over count.
-      // E.g., 6 balls -> apiOvers=1, apiBalls=0 -> (apiOvers=1, apiBalls=6)
-      // E.g., 12 balls -> apiOvers=2, apiBalls=0 -> (apiOvers=2, apiBalls=6)
+    if (widget.match['teamA']?.toString() == _selectedFirstBattingTeamName) {
+      // Team A batted first
+      teamABatting = _teamABattingStats;
+      teamABowling = _teamABowlingStats;
+      teamBBatting = _teamBBattingStats;
+      teamBBowling = _teamBBowlingStats;
+    } else {
+      // Team B batted first
+      teamABatting =
+          _teamBBattingStats; // This means team B's stats are stored as A
+      teamABowling = _teamBBowlingStats;
+      teamBBatting =
+          _teamABattingStats; // This means team A's stats are stored as B
+      teamBBowling = _teamABowlingStats;
     }
 
     final Map<String, dynamic> data = {
       "matchId": matchId,
-      "teamId": teamId,
+      // Added top-level parameters as requested to match the curl example.
+      // Note: These are redundant with data inside 'currentInnings'
+      // but are included to fulfill the request.
+      "teamId": _currentBattingTeamId,
       "runs": _currentRuns,
       "wickets": _currentWickets,
-      "overs": apiOvers,
+      "overs": _totalLegalBallsBowledInInnings ~/
+          6, // Integer representation of overs
       "eventType": eventType,
-      "balls": apiBalls,
       "isMatchOver": isMatchOver,
+      "currentInnings": {
+        "runs": _currentRuns,
+        "wickets": _currentWickets,
+        "totalLegalBallsBowledInInnings": _totalLegalBallsBowledInInnings,
+        "ballsInCurrentOver": _ballsInCurrentOver,
+        "extras": _extras,
+        "partnershipRuns": _partnershipRuns,
+        "partnershipBalls": _partnershipBalls,
+        "isFirstInnings": _isFirstInnings,
+        "firstInningsRuns": _firstInningsRuns,
+        "firstInningsWickets": _firstInningsWickets,
+        "targetScore": _targetScore,
+        "currentBattingTeamName": _currentBattingTeamName,
+        "currentBowlingTeamName": _currentBowlingTeamName,
+        "currentBattingTeamId": _currentBattingTeamId,
+        "currentBowlingTeamId": _currentBowlingTeamId,
+        "activeBatsman1Name": (_activeBatsman1Index >= 0 &&
+                _activeBatsman1Index < _teamABattingStats.length)
+            ? _teamABattingStats[_activeBatsman1Index]['name']
+            : null,
+        "activeBatsman2Name": (_activeBatsman2Index >= 0 &&
+                _activeBatsman2Index < _teamABattingStats.length)
+            ? _teamABattingStats[_activeBatsman2Index]['name']
+            : null,
+        "activeBowlerName": (_activeBowlerIndex >= 0 &&
+                _activeBowlerIndex < _teamABowlingStats.length)
+            ? _teamABowlingStats[_activeBowlerIndex]['name']
+            : null,
+      },
+      "teamAStats": {
+        "batting": teamABatting,
+        "bowling": teamABowling,
+      },
+      "teamBStats": {
+        "batting": teamBBatting,
+        "bowling": teamBBowling,
+      },
+      "overByOverSummary": _overByOverSummary,
+      "ballEvents": _ballEvents,
     };
 
     try {
@@ -586,20 +692,20 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   }
 
   // Function to fetch score from backend
+  // This method now expects a comprehensive scoreData object and updates all relevant state.
   Future<void> _fetchScoreFromBackend() async {
     final int matchId = widget.matchId as int? ?? 0;
     print("Match id: " + widget.matchId.toString());
-    final int teamId =
-        _currentBattingTeamId; // Fetch score for the current batting team
 
-    if (matchId == 0 || teamId == 0) {
-      debugPrint("Cannot fetch score: Match ID or Team ID is invalid.");
+    if (matchId == 0) {
+      debugPrint("Cannot fetch score: Match ID is invalid.");
       return;
     }
 
     try {
       final response = await http.get(
-        Uri.parse('$_apiBaseUrl/getScore?MatchId=$matchId&TeamId=$teamId'),
+        Uri.parse(
+            '$_apiBaseUrl/getScore?MatchId=$matchId'), // Only MatchId needed now
         headers: {
           'Accept': '*/*', // As per curl command
         },
@@ -607,18 +713,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> scoreData = json.decode(response.body);
-        setState(() {
-          _currentRuns = scoreData['runs'] ?? 0;
-          _currentWickets = scoreData['wickets'] ?? 0;
-          // Assuming 'overs' from GET means completed overs, so we re-calculate total balls.
-          _totalLegalBallsBowledInInnings = (scoreData['overs'] ?? 0) * 6;
-          _ballsInCurrentOver =
-              0; // Reset for consistency after fetching completed overs
-          // Note: 'eventType', 'timestamp', 'fromCache' from backend are not used to update UI state directly,
-          // as they are typically event-specific or metadata.
-          debugPrint(
-              'Score fetched successfully: $_currentRuns/$_currentWickets at ${_currentOversDisplay.toStringAsFixed(1)} overs');
-        });
+        _updateLiveScoreFromSignalR(scoreData); // Use the same update method
+        debugPrint('Score fetched successfully.');
       } else {
         debugPrint(
             'Failed to fetch score. Status code: ${response.statusCode}, Body: ${response.body}');
@@ -2090,16 +2186,23 @@ class _MatchDetailPageState extends State<MatchDetailPage>
       }
     }
 
-    final List<Map<String, dynamic>> currentBattingTeamPlayers =
-        (_currentBattingTeamName ==
-                (widget.match['teamA']?.toString() ?? 'Team A'))
-            ? _teamABattingStats
-            : _teamBBattingStats;
-    final List<Map<String, dynamic>> currentBowlingTeamPlayers =
-        (_currentBowlingTeamName ==
-                (widget.match['teamA']?.toString() ?? 'Team A'))
-            ? _teamABowlingStats
-            : _teamBBowlingStats;
+    // Determine which team's batting stats to display based on `_currentBattingTeamName`
+    List<Map<String, dynamic>> currentBattingTeamPlayers;
+    if (_currentBattingTeamName ==
+        (widget.match['teamA']?.toString() ?? 'Team A')) {
+      currentBattingTeamPlayers = _teamABattingStats;
+    } else {
+      currentBattingTeamPlayers = _teamBBattingStats;
+    }
+
+    // Determine which team's bowling stats to display based on `_currentBowlingTeamName`
+    List<Map<String, dynamic>> currentBowlingTeamPlayers;
+    if (_currentBowlingTeamName ==
+        (widget.match['teamA']?.toString() ?? 'Team A')) {
+      currentBowlingTeamPlayers = _teamABowlingStats;
+    } else {
+      currentBowlingTeamPlayers = _teamBBowlingStats;
+    }
 
     final String batsman1Name = (_activeBatsman1Index >= 0 &&
             _activeBatsman1Index < currentBattingTeamPlayers.length)

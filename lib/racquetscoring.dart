@@ -29,9 +29,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   // Each map will contain {'team1': score, 'team2': score} for a set
   List<Map<String, int>> _setScores = [];
 
-  // Serve indicator: 1 for Team 1 serving, 2 for Team 2 serving, 0 for no active server
-  // This will be managed automatically now.
-  int _servingTeam = 0;
+  // Service control
+  List<String> _allPlayers =
+      []; // Combined list of all players for serve rotation
+  int _currentServerIndex = 0; // Global index of the player currently serving
+  int _servingTeam =
+      0; // 1 for Team 1 serving, 2 for Team 2 serving, 0 for no active server
 
   final int _targetScore =
       21; // Target points to win a set (e.g., for badminton/pickleball)
@@ -41,6 +44,8 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   @override
   void initState() {
     super.initState();
+    _allPlayers = [...widget.team1Players, ...widget.team2Players];
+
     // Prompt for initial serve when the screen loads for a new match
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_team1Sets == 0 && _team2Sets == 0 && _servingTeam == 0) {
@@ -49,9 +54,19 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
     });
   }
 
-  // Dialog to prompt for which team serves first
+  // Helper to determine team ID from player name
+  int _getTeamIdForPlayer(String playerName) {
+    if (widget.team1Players.contains(playerName)) {
+      return 1;
+    } else if (widget.team2Players.contains(playerName)) {
+      return 2;
+    }
+    return 0; // Should not happen if player is in _allPlayers
+  }
+
+  // Dialog to prompt for which player serves first
   Future<void> _promptForInitialServe() async {
-    int? initialServer = await showDialog<int>(
+    String? initialServerName = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
@@ -60,26 +75,25 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               style: TextStyle(color: Colors.blueAccent)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(widget.team1Players.firstOrNull ?? 'Team 1'),
-                onTap: () => Navigator.of(dialogContext).pop(1),
-              ),
-              ListTile(
-                title: Text(widget.team2Players.firstOrNull ?? 'Team 2'),
-                onTap: () => Navigator.of(dialogContext).pop(2),
-              ),
-            ],
+            children: _allPlayers
+                .map((playerName) => ListTile(
+                      title: Text(playerName),
+                      onTap: () => Navigator.of(dialogContext).pop(playerName),
+                    ))
+                .toList(),
           ),
         );
       },
     );
 
-    if (initialServer != null) {
+    if (initialServerName != null) {
       setState(() {
-        _servingTeam = initialServer;
+        _currentServerIndex = _allPlayers.indexOf(initialServerName);
+        _servingTeam = _getTeamIdForPlayer(initialServerName);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Team $_servingTeam will serve first.')),
+          SnackBar(
+              content: Text(
+                  '$initialServerName (${_servingTeam == 1 ? 'Team 1' : 'Team 2'}) will serve first.')),
         );
       });
     }
@@ -122,13 +136,38 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team1Score++;
       _pointHistory.add(1); // Record that Team 1 scored
 
-      // Automatic serve change logic for rally scoring
-      // If Team 1 was NOT serving and they scored, they get the serve.
+      // If Team 1 was NOT serving and they scored (service break)
       if (_servingTeam != 1) {
-        _servingTeam = 1;
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   const SnackBar(content: Text('Serve changed to Team 1')),
-        // );
+        _currentServerIndex = (_currentServerIndex + 1) %
+            _allPlayers.length; // Rotate to next player globally
+        _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text('Serve changed to ${_allPlayers[_currentServerIndex]}')),
+        );
+      } else {
+        // Team 1 was serving and won the point. Now, the other player on Team 1 should serve.
+        List<String> currentServingTeamPlayers = widget.team1Players;
+        if (currentServingTeamPlayers.length > 1) {
+          // Only if there's another player to switch to
+          String currentServerName = _allPlayers[_currentServerIndex];
+          int currentServerTeamPlayerIndex =
+              currentServingTeamPlayers.indexOf(currentServerName);
+
+          // Find the next player in the current serving team's list
+          int nextPlayerInTeamIndex = (currentServerTeamPlayerIndex + 1) %
+              currentServingTeamPlayers.length;
+          String nextServerName =
+              currentServingTeamPlayers[nextPlayerInTeamIndex];
+
+          _currentServerIndex =
+              _allPlayers.indexOf(nextServerName); // Update global index
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Serve changed to $nextServerName (Team 1)')),
+          );
+        }
       }
       _checkSetWin(); // Check for set win after each point
     });
@@ -150,13 +189,38 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team2Score++;
       _pointHistory.add(2); // Record that Team 2 scored
 
-      // Automatic serve change logic for rally scoring
-      // If Team 2 was NOT serving and they scored, they get the serve.
+      // If Team 2 was NOT serving and they scored (service break)
       if (_servingTeam != 2) {
-        _servingTeam = 2;
+        _currentServerIndex = (_currentServerIndex + 1) %
+            _allPlayers.length; // Rotate to next player globally
+        _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Serve changed to Team 2')),
+          SnackBar(
+              content:
+                  Text('Serve changed to ${_allPlayers[_currentServerIndex]}')),
         );
+      } else {
+        // Team 2 was serving and won the point. Now, the other player on Team 2 should serve.
+        List<String> currentServingTeamPlayers = widget.team2Players;
+        if (currentServingTeamPlayers.length > 1) {
+          // Only if there's another player to switch to
+          String currentServerName = _allPlayers[_currentServerIndex];
+          int currentServerTeamPlayerIndex =
+              currentServingTeamPlayers.indexOf(currentServerName);
+
+          // Find the next player in the current serving team's list
+          int nextPlayerInTeamIndex = (currentServerTeamPlayerIndex + 1) %
+              currentServingTeamPlayers.length;
+          String nextServerName =
+              currentServingTeamPlayers[nextPlayerInTeamIndex];
+
+          _currentServerIndex =
+              _allPlayers.indexOf(nextServerName); // Update global index
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Serve changed to $nextServerName (Team 2)')),
+          );
+        }
       }
       _checkSetWin(); // Check for set win after each point
     });
@@ -190,9 +254,27 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team2Score = 0;
       _pointHistory.clear(); // Clear point history as a new set begins
 
-      // Determine next server: alternate serving team after each set
-      _servingTeam =
-          (winningTeam == 1) ? 2 : 1; // Winning team gets serve in next set.
+      // Determine next server: Winning team gets to serve the next set.
+      _servingTeam = winningTeam; // The winning team serves next set.
+
+      // Find the next available player in the rotation from the winning team to serve
+      int startingSearchIndex = _currentServerIndex;
+      int nextServerIndex = -1;
+      for (int i = 0; i < _allPlayers.length; i++) {
+        int potentialServerIndex =
+            (startingSearchIndex + i) % _allPlayers.length;
+        String playerName = _allPlayers[potentialServerIndex];
+        int playerTeam = _getTeamIdForPlayer(playerName);
+
+        if (playerTeam == winningTeam) {
+          nextServerIndex = potentialServerIndex;
+          break;
+        }
+      }
+      // Fallback to first player of winning team if calculation fails or list is empty
+      _currentServerIndex = nextServerIndex != -1 ? nextServerIndex : 0;
+      // Ensure the serving team is correctly set based on the chosen player
+      _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
 
       _showSetWinnerDialog(winningTeam == 1 ? 'Team 1' : 'Team 2');
     });
@@ -207,35 +289,16 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
         int lastScoredTeam = _pointHistory.removeLast();
         if (lastScoredTeam == 1 && _team1Score > 0) {
           _team1Score--;
-          // If undoing causes the score to be 0-0 and no previous serve, reset serve.
-          // Or if the undone point was the one that gave a team the serve, revert serve.
-          // This can get complex, for simplicity, we'll only revert serve if scores match
-          // what they were before the point and the other team was serving.
-          if (_team1Score == 0 && _team2Score == 0) {
-            _servingTeam = 0; // Reset serve if back to 0-0
-            _promptForInitialServe(); // Re-prompt for initial serve
-          } else {
-            // A more complex undo for serve would require tracking serve changes in _pointHistory
-            // For now, we'll assume manual serve adjustment if undo breaks automatic flow.
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Serve might need manual adjustment.')),
-            );
-          }
         } else if (lastScoredTeam == 2 && _team2Score > 0) {
           _team2Score--;
-          if (_team1Score == 0 && _team2Score == 0) {
-            _servingTeam = 0;
-            _promptForInitialServe();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Serve might need manual adjustment.')),
-            );
-          }
         }
+        // Reverting serve logic on undo can be complex for a circular rotation.
+        // For simplicity, we won't automatically revert server index on undo
+        // but will allow manual adjustment via _toggleServe or resetting set/match.
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Last point undone.')),
+          const SnackBar(
+              content: Text(
+                  'Last point undone. Serve might need manual adjustment.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -251,12 +314,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team1Score = 0;
       _team2Score = 0;
       _pointHistory.clear(); // Also clear point history for the current set
-      _servingTeam = 0; // Reset serve indicator
-      _promptForInitialServe(); // Prompt for serve again for the new set
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Current set score reset!')),
-      );
+      _servingTeam = 0; // Reset serve indicator to trigger initial prompt
     });
+    _promptForInitialServe(); // Prompt for serve again for the new set
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Current set score reset!')),
+    );
   }
 
   // Function to reset the entire match scores and set history
@@ -268,11 +331,11 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team2Sets = 0;
       _setScores.clear(); // Clear all recorded set scores
       _pointHistory.clear(); // Clear all point history
-      _servingTeam = 0; // Reset serve indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Match scores and history reset!')),
-      );
+      _servingTeam = 0; // Reset serve indicator to trigger initial prompt
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Match scores and history reset!')),
+    );
     // After resetting the match, prompt for the initial serve again
     _promptForInitialServe();
   }
@@ -402,13 +465,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   // Function to toggle the serving team (manual override)
   void _toggleServe() {
     setState(() {
-      if (_servingTeam == 1) {
-        _servingTeam = 2;
-      } else {
-        _servingTeam = 1;
-      }
+      _currentServerIndex = (_currentServerIndex + 1) % _allPlayers.length;
+      _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Serve toggled to Team $_servingTeam')),
+        SnackBar(
+            content: Text(
+                'Serve manually toggled to ${_allPlayers[_currentServerIndex]}')),
       );
     });
   }
@@ -428,17 +490,17 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               const Text(
                 'More Options',
                 style: TextStyle(
-                  fontSize: 20, // Smaller font
+                  fontSize: 18, // Smaller font
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 15), // Reduced space
+              const SizedBox(height: 12), // Reduced space
               ListTile(
                 leading: const Icon(Icons.undo, color: Colors.white),
                 title: const Text('Undo Last Point',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 14)), // Smaller font
+                        color: Colors.white, fontSize: 13)), // Smaller font
                 onTap: () {
                   _undoLastPoint();
                   Navigator.pop(context); // Close bottom sheet
@@ -448,7 +510,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 leading: const Icon(Icons.refresh, color: Colors.white),
                 title: const Text('Reset Current Set',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 14)), // Smaller font
+                        color: Colors.white, fontSize: 13)), // Smaller font
                 onTap: () {
                   _resetCurrentSetScores();
                   Navigator.pop(context); // Close bottom sheet
@@ -458,7 +520,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 leading: const Icon(Icons.replay, color: Colors.white),
                 title: const Text('Reset Entire Match',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 14)), // Smaller font
+                        color: Colors.white, fontSize: 13)), // Smaller font
                 onTap: () {
                   _resetMatch();
                   Navigator.pop(context); // Close bottom sheet
@@ -468,12 +530,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 leading: const Icon(Icons.exit_to_app, color: Colors.white),
                 title: const Text('End Match',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 14)), // Smaller font
+                        color: Colors.white, fontSize: 13)), // Smaller font
                 onTap: () {
                   _endMatchConfirm(); // This will handle navigation and closing bottom sheet
                 },
               ),
-              const SizedBox(height: 15), // Reduced space
+              const SizedBox(height: 12), // Reduced space
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
@@ -484,10 +546,10 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                         8), // Slightly smaller border radius
                   ),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 15, vertical: 8), // Smaller padding
+                      horizontal: 12, vertical: 6), // Smaller padding
                 ),
                 child: const Text('Close',
-                    style: TextStyle(fontSize: 14)), // Smaller font
+                    style: TextStyle(fontSize: 13)), // Smaller font
               ),
             ],
           ),
@@ -502,16 +564,25 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
     String team1DisplayName = 'Player 1';
     if (widget.team1Players.isNotEmpty) {
       team1DisplayName = widget.team1Players.length > 1
-          ? widget.team1Players.join(' / ')
+          ? widget.team1Players
+              .join('\n') // Use newline for wrapping multiple players
           : widget.team1Players[0];
     }
 
     String team2DisplayName = 'Player 2';
     if (widget.team2Players.isNotEmpty) {
       team2DisplayName = widget.team2Players.length > 1
-          ? widget.team2Players.join(' / ')
+          ? widget.team2Players
+              .join('\n') // Use newline for wrapping multiple players
           : widget.team2Players[0];
     }
+
+    // Get the name of the player currently serving for display
+    String currentServerName = (_servingTeam != 0 &&
+            _currentServerIndex >= 0 &&
+            _currentServerIndex < _allPlayers.length)
+        ? _allPlayers[_currentServerIndex]
+        : 'N/A';
 
     return Scaffold(
       appBar: AppBar(
@@ -524,183 +595,128 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       backgroundColor: Colors.blue.shade900, // Overall background
       body: Column(
         children: <Widget>[
-          // Player Names and Main Scores Section
+          // Main Score and Team Info Section
           Expanded(
-            flex: 4,
+            flex: 5, // Give more flex to the main scoring area
             child: Row(
               children: [
                 // Team 1 Section (Left Side)
                 Expanded(
                   child: Container(
-                    color: Colors.blue.shade900, // Matching background
+                    padding: const EdgeInsets.all(8.0), // Added padding
+                    color: Colors.blue.shade900,
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceEvenly, // Distribute space
                       children: [
-                        Row(
-                          // Row for name and serve icon
-                          mainAxisSize: MainAxisSize.min,
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            // Team 1 Name
                             Text(
                               team1DisplayName,
                               style: const TextStyle(
-                                fontSize: 28, // Smaller font
+                                fontSize: 16, // Smaller font for names
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                               textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2, // Limit to 2 lines
+                              overflow: TextOverflow.ellipsis, // Add ellipsis
                             ),
-                            if (_servingTeam ==
-                                1) // Show icon if Team 1 is serving
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8.0),
-                                child: Icon(Icons.sports_tennis,
+                            // Current Server for Team 1
+                            if (_servingTeam == 1)
+                              Text(
+                                '($currentServerName serving)', // Explicit serving text
+                                style: const TextStyle(
                                     color: Colors.amber,
-                                    size: 24), // Amber for serve icon
+                                    fontSize: 11), // Smaller font
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                           ],
                         ),
-                        const SizedBox(height: 8), // Reduced space
+                        // Team 1 Score
                         Text(
-                          '$_team1Score', // Current points for Team 1
+                          '$_team1Score',
                           style: const TextStyle(
-                            fontSize: 150, // Smaller score font
+                            fontSize: 90, // Further adjusted score font size
                             fontWeight: FontWeight.bold,
-                            color: Colors.white, // White score
+                            color: Colors.white,
+                          ),
+                        ),
+                        // Team 1 Sets (Optional: could be moved to center or a summary)
+                        Text(
+                          'Sets: $_team1Sets',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                // Separator/Controls Column (Middle)
+                // Central Control Column
                 SizedBox(
                   width: MediaQuery.of(context).size.width *
-                      0.25, // Further adjusted width
+                      0.18, // Adjusted width for controls
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceEvenly, // Distribute space
                     children: [
-                      // Set Scores
-                      Text(
-                        '$_team1Sets', // Team 1 Sets
-                        style: const TextStyle(
-                          fontSize: 40, // Smaller font
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        '$_team2Sets', // Team 2 Sets
-                        style: const TextStyle(
-                          fontSize: 40, // Smaller font
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 10), // Reduced space
                       // Reset Current Set Scores button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _resetCurrentSetScores,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.blue.shade700, // Blue button
+                            backgroundColor: Colors.blue.shade700,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(6), // Smaller radius
-                            ),
+                                borderRadius: BorderRadius.circular(5)),
                             padding: const EdgeInsets.symmetric(
-                                vertical: 6), // Smaller padding
+                                vertical: 2), // Smaller padding
+                            minimumSize: const Size(0, 30), // Min height
                           ),
-                          child: const Icon(Icons.refresh,
-                              size: 20), // Smaller icon
+                          child: const Icon(Icons.refresh, size: 16),
                         ),
                       ),
-                      const SizedBox(height: 6), // Reduced spacing
+                      const SizedBox(height: 5),
                       // Serve Indicator Toggle Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed:
-                              _toggleServe, // Call the serve toggle function
+                          onPressed: _toggleServe,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.blue.shade700, // Blue button
+                            backgroundColor: Colors.blue.shade700,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+                                borderRadius: BorderRadius.circular(5)),
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            minimumSize: const Size(0, 30),
                           ),
-                          child: const Icon(Icons.sports_tennis,
-                              size: 20), // Shuttlecock icon
+                          child: const Icon(Icons.sports_tennis, size: 16),
                         ),
                       ),
-                      const SizedBox(height: 6), // Reduced spacing
-                      // Decrement buttons and More Options
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _decrementTeam1Score,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.blue.shade700, // Blue button
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
-                              ),
-                              child: const Text('-',
-                                  style:
-                                      TextStyle(fontSize: 20)), // Smaller font
-                            ),
+                      const SizedBox(height: 5),
+                      // More Options button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _showMoreOptions,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(5)),
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            minimumSize: const Size(0, 30),
                           ),
-                          const SizedBox(width: 4), // Reduced spacing
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed:
-                                  _showMoreOptions, // Linked to more options bottom sheet
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.blue.shade700, // Blue button
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
-                              ),
-                              child: const Icon(Icons.more_horiz,
-                                  size: 20), // Smaller icon
-                            ),
-                          ),
-                          const SizedBox(width: 4), // Reduced spacing
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _decrementTeam2Score,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.blue.shade700, // Blue button
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
-                              ),
-                              child: const Text('-',
-                                  style:
-                                      TextStyle(fontSize: 20)), // Smaller font
-                            ),
-                          ),
-                        ],
+                          child: const Icon(Icons.more_horiz, size: 16),
+                        ),
                       ),
                     ],
                   ),
@@ -708,42 +724,56 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 // Team 2 Section (Right Side)
                 Expanded(
                   child: Container(
-                    color: Colors.blue.shade900, // Matching background
+                    padding: const EdgeInsets.all(8.0), // Added padding
+                    color: Colors.blue.shade900,
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceEvenly, // Distribute space
                       children: [
-                        Row(
-                          // Row for name and serve icon
-                          mainAxisSize: MainAxisSize.min,
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            // Team 2 Name
                             Text(
                               team2DisplayName,
                               style: const TextStyle(
-                                fontSize: 28, // Smaller font
+                                fontSize: 16, // Smaller font for names
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                               textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2, // Limit to 2 lines
+                              overflow: TextOverflow.ellipsis, // Add ellipsis
                             ),
-                            if (_servingTeam ==
-                                2) // Show icon if Team 2 is serving
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8.0),
-                                child: Icon(Icons.sports_tennis,
+                            // Current Server for Team 2
+                            if (_servingTeam == 2)
+                              Text(
+                                '($currentServerName serving)', // Explicit serving text
+                                style: const TextStyle(
                                     color: Colors.amber,
-                                    size: 24), // Amber for serve icon
+                                    fontSize: 11), // Smaller font
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                           ],
                         ),
-                        const SizedBox(height: 8), // Reduced space
+                        // Team 2 Score
                         Text(
-                          '$_team2Score', // Current points for Team 2
+                          '$_team2Score',
                           style: const TextStyle(
-                            fontSize: 150, // Smaller score font
+                            fontSize: 90, // Further adjusted score font size
                             fontWeight: FontWeight.bold,
-                            color: Colors.white, // White score
+                            color: Colors.white,
+                          ),
+                        ),
+                        // Team 2 Sets (Optional: could be moved to center or a summary)
+                        Text(
+                          'Sets: $_team2Sets',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
                           ),
                         ),
                       ],
@@ -753,66 +783,106 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               ],
             ),
           ),
-          // Point Increment Buttons (at the bottom) - these are the big +1 buttons
-          Container(
-            color: Colors.blue.shade900, // Matching background
-            padding:
-                const EdgeInsets.fromLTRB(15, 8, 15, 15), // Reduced padding
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _incrementTeam1Score,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700, // Blue button
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(12), // Smaller radius
+          // Point Increment Buttons (at the bottom)
+          Expanded(
+            flex: 1, // Give less flex to the buttons area
+            child: Container(
+              color: Colors.blue.shade900,
+              padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _incrementTeam1Score,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12), // Reduced padding
                       ),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 20), // Reduced padding
-                    ),
-                    child: Text(
-                      '${widget.team1Players.firstOrNull ?? 'Team 1'}\n+1', // Dynamic label
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold), // Smaller font
+                      child: Text(
+                        '${widget.team1Players.firstOrNull ?? 'Team 1'}\n+1',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold), // Smaller font
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 15), // Reduced spacing
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _incrementTeam2Score,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700, // Blue button
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(12), // Smaller radius
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 20), // Reduced padding
-                    ),
-                    child: Text(
-                      '${widget.team2Players.firstOrNull ?? 'Team 2'}\n+1', // Dynamic label
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold), // Smaller font
+                  const SizedBox(width: 8),
+                  // Decrement buttons moved here for compactness
+                  Container(
+                    width: MediaQuery.of(context).size.width *
+                        0.18, // Match central column width
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _decrementTeam1Score,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 0), // No horizontal padding
+                              minimumSize: const Size(30, 0), // Min size to fit
+                            ),
+                            child:
+                                const Text('-', style: TextStyle(fontSize: 16)),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _decrementTeam2Score,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 0), // No horizontal padding
+                              minimumSize: const Size(30, 0),
+                            ),
+                            child:
+                                const Text('-', style: TextStyle(fontSize: 16)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _incrementTeam2Score,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        '${widget.team2Players.firstOrNull ?? 'Team 2'}\n+1',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Set History
           Container(
-            color: Colors.blue.shade900, // Matching background
-            padding: const EdgeInsets.symmetric(
-                vertical: 8, horizontal: 15), // Reduced padding
+            color: Colors.blue.shade900,
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
             child: Column(
               children: [
                 if (_setScores.isNotEmpty)
@@ -821,16 +891,15 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                       const Text(
                         'Set History:',
                         style: TextStyle(
-                          fontSize: 16, // Smaller font
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 6), // Reduced space
-                      // Use a Wrap for better flow of set score chips
+                      const SizedBox(height: 3),
                       Wrap(
-                        spacing: 6.0, // Reduced horizontal space between chips
-                        runSpacing: 3.0, // Reduced vertical space between lines
+                        spacing: 4.0,
+                        runSpacing: 1.0,
                         alignment: WrapAlignment.center,
                         children: _setScores.asMap().entries.map((entry) {
                           int index = entry.key;
@@ -841,16 +910,16 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12), // Smaller font
+                                  fontSize: 10),
                             ),
-                            backgroundColor: Colors.blue.shade600, // Blue chip
-                            elevation: 1, // Reduced elevation
+                            backgroundColor: Colors.blue.shade600,
+                            elevation: 0.5,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2), // Smaller padding
+                                horizontal: 4, vertical: 0),
                           );
                         }).toList(),
                       ),
-                      const SizedBox(height: 10), // Reduced space
+                      const SizedBox(height: 6),
                     ],
                   ),
               ],

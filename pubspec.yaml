@@ -15,7 +15,8 @@ dependencies:
   shared_preferences: ^2.0.15
   image_picker: ^0.8.7+4
   intl: ^0.17.0
-  signalr_netcore: ^1.1.1
+  signalr_core: ^1.1.1
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

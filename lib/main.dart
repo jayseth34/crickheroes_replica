@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CricHeroes Auth',
+      title: 'CricHeroes Auth ',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: LoginPage(), // <-- Set this as the home screen
     );

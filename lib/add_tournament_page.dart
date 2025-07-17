@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart'; // Import for launching URLs
+import 'package:flutter/foundation.dart' show kIsWeb; // Import for kIsWeb
+import 'dart:typed_data'; // Import for Uint8List
+import 'package:flutter/foundation.dart'; // Import for debugPrint
 
 class AddTournamentPage extends StatefulWidget {
   final bool isUpdate;
@@ -26,6 +30,8 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     TextEditingController()
   ];
   File? _profileImage;
+  Uint8List? _profileImageBytes; // New state variable for web image bytes
+  String? _imagePickedFileName; // New state variable to show picked file name
   final picker = ImagePicker();
 
   String selectedSport = 'Cricket';
@@ -54,6 +60,14 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
   bool _loading = false;
 
+  // Define a consistent color palette
+  static const Color primaryBlue = Color(0xFF1976D2); // A strong blue
+  static const Color accentBlue =
+      Color(0xFF42A5F5); // A lighter blue for accents
+  static const Color lightBackground = Colors.white;
+  static const Color textOnPrimary = Colors.white;
+  static const Color textOnLight = Colors.black87;
+
   Map<String, dynamic>? tournamentData;
 
   @override
@@ -67,6 +81,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     }
   }
 
+  // Function to fetch tournament details for update mode
   Future<void> _fetchTournamentDetails(int id) async {
     setState(() {
       _loading = true;
@@ -131,15 +146,63 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     }
   }
 
+  // Function to pick an image from the gallery
   Future<void> _pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
+    try {
+      final picked = await picker.pickImage(source: ImageSource.gallery);
+      if (picked != null) {
+        if (kIsWeb) {
+          // For web, read bytes directly and use MemoryImage
+          final bytes = await picked.readAsBytes();
+          debugPrint(
+              'Image bytes length for web: ${bytes.length}'); // Debug print
+          if (bytes.isNotEmpty) {
+            setState(() {
+              _profileImageBytes = bytes;
+              _profileImage = null; // Clear File if using bytes
+              _imagePickedFileName = picked.name;
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Selected image file is empty or corrupted.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            setState(() {
+              _profileImageBytes = null;
+              _profileImage = null;
+              _imagePickedFileName = null;
+            });
+          }
+        } else {
+          // For native, use FileImage
+          setState(() {
+            _profileImage = File(picked.path);
+            _profileImageBytes = null; // Clear bytes if using File
+            _imagePickedFileName = picked.name;
+          });
+        }
+        print('Image picked: ${_imagePickedFileName}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Error picking image: $e. Try a different image or run natively.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       setState(() {
-        _profileImage = File(picked.path);
+        _profileImageBytes = null;
+        _profileImage = null;
+        _imagePickedFileName = null;
       });
+      debugPrint('Error during image picking: $e'); // Debug print for errors
     }
   }
 
+  // Validator for phone number input
   String? _validatePhoneNumber(String? value) {
     if (value == null || value.isEmpty) return 'Required';
     if (!RegExp(r'^\d{10}$').hasMatch(value)) {
@@ -148,24 +211,101 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     return null;
   }
 
+  // Function to construct and send a WhatsApp message with tournament details
+  Future<void> _sendWhatsAppMessage() async {
+    final tournamentName = _tournamentNameController.text;
+    final place = _placeController.text;
+    final sportType = selectedSport;
+    final numberOfTeams = selectedTeamCount;
+    final ownerName = _ownerNameController.text;
+    final basePrice = _basePriceController.text;
+    final duration = _durationController.text;
+    final matchDetail = _matchDetailController.text;
+
+    // Construct entry fee details
+    String entryFeeDetails = '';
+    if (int.tryParse(basePrice) != null && int.parse(basePrice) > 0) {
+      entryFeeDetails += 'Player Base Price: ₹$basePrice\n';
+    }
+    if (paymentAmount > 0) {
+      entryFeeDetails +=
+          'Team Registration Fee: ₹$paymentAmount for $numberOfTeams teams\n';
+    }
+    if (entryFeeDetails.isEmpty) {
+      entryFeeDetails = 'No entry fee specified.';
+    }
+
+    // Placeholder URLs for registration - REPLACE WITH YOUR ACTUAL APP URLs
+    final registerTeamLink = "https://your-app-domain.com/register-team";
+    final addPlayerLink = "https://your-app-domain.com/join-player";
+    final contactInfo =
+        "your-email@example.com or +91-XXXXXXXXXX"; // Replace with actual contact info
+
+    final message = "🎉 *Tournament Details* 🎉\n\n"
+        "We are excited to announce the upcoming *$tournamentName*, "
+        "set to take place for *$duration days* at *$place*. "
+        "This event promises thrilling matches, team spirit, and unforgettable moments!\n\n"
+        "🏆 *Tournament Details:*\n"
+        "Game/Sport: *$sportType*\n"
+        "Location: *$place*\n"
+        "Number of Teams: *$numberOfTeams*\n"
+        "Match Details: *$matchDetail*\n"
+        "Entry Fee:\n$entryFeeDetails\n"
+        "👥 Whether you want to form a team or join as an individual player, we’ve got you covered!\n\n"
+        "🔗 *Register Your Team:*\n"
+        "$registerTeamLink\n\n"
+        "🔗 *Add/Join as a Player:*\n"
+        "$addPlayerLink\n\n"
+        "📌 Hurry! Limited slots available. Deadline for registration: [Registration Deadline - e.g., 2025-07-31]\n" // Placeholder for deadline
+        "For any queries or support, feel free to reach out at *$contactInfo*.\n\n"
+        "Let the games begin! ⚡";
+
+    // Encode the message to be safely included in a URL
+    // Using wa.me for better compatibility in web environments
+    final whatsappUrl = "https://wa.me/?text=${Uri.encodeComponent(message)}";
+
+    // Check if the URL can be launched and then launch it
+    if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
+      await launchUrl(Uri.parse(whatsappUrl));
+    } else {
+      // Show a snackbar if launching fails (e.g., no browser or app to handle it)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Could not open WhatsApp. Make sure it is installed or try from a mobile device.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Determine the image provider based on platform and selected image
+    ImageProvider<Object>? avatarImageProvider;
+    if (kIsWeb && _profileImageBytes != null) {
+      avatarImageProvider = MemoryImage(_profileImageBytes!);
+    } else if (!kIsWeb && _profileImage != null) {
+      avatarImageProvider = FileImage(_profileImage!);
+    }
+
     if (_loading) {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
-          backgroundColor: Colors.deepPurple,
-          foregroundColor: Colors.white,
+          backgroundColor: primaryBlue,
+          foregroundColor: textOnPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator(color: primaryBlue)),
       );
     }
 
     return Scaffold(
+      backgroundColor: lightBackground, // Set scaffold background to white
       appBar: AppBar(
         title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
+        backgroundColor: primaryBlue,
+        foregroundColor: textOnPrimary,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -178,35 +318,56 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(6), // Slightly more padding
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.deepPurple, width: 3),
+                        border: Border.all(
+                            color: primaryBlue, width: 3), // Blue border
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryBlue.withOpacity(0.3),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: _profileImage != null
-                            ? FileImage(_profileImage!)
-                            : null,
-                        child: _profileImage == null
+                        radius: 65, // Slightly larger
+                        backgroundColor:
+                            Colors.blue.shade50, // Light blue background
+                        backgroundImage:
+                            avatarImageProvider, // Use the determined image provider
+                        child: (avatarImageProvider == null)
                             ? const Icon(Icons.add_a_photo,
-                                size: 40, color: Colors.grey)
+                                size: 45, color: accentBlue) // Blue icon
                             : null,
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text('Tap to add image',
-                        style: TextStyle(color: Colors.grey))
+                        style: TextStyle(color: primaryBlue)) // Blue text
                   ],
                 ),
               ),
+              if (_imagePickedFileName != null) // Display selected file name
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'Selected: $_imagePickedFileName',
+                    style: TextStyle(
+                        color: primaryBlue,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic),
+                  ),
+                ),
               const SizedBox(height: 24),
               Card(
-                elevation: 4,
+                elevation: 6, // Slightly more prominent shadow
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
-                shadowColor: Colors.deepPurple.shade100,
+                shadowColor:
+                    primaryBlue.withOpacity(0.2), // Blue tint for shadow
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -222,11 +383,13 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                           const Text(
                             'Admin Phone Numbers',
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: textOnLight), // Consistent text color
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline,
-                                color: Colors.deepPurple),
+                                color: primaryBlue), // Blue icon
                             onPressed: () {
                               setState(() {
                                 _adminControllers.add(TextEditingController());
@@ -244,7 +407,20 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                             decoration: InputDecoration(
                               hintText: 'Enter phone number',
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
+                                borderRadius:
+                                    BorderRadius.circular(12), // More rounded
+                                borderSide: BorderSide(
+                                    color: primaryBlue.withOpacity(0.5)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: primaryBlue, width: 2),
+                              ),
+                              labelStyle: const TextStyle(color: primaryBlue),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                  horizontal: 16), // Better padding
                             ),
                             validator: _validatePhoneNumber,
                           ),
@@ -255,7 +431,18 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                         decoration: InputDecoration(
                           labelText: 'Number of Teams',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: primaryBlue.withOpacity(0.5)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: primaryBlue, width: 2),
+                          ),
+                          labelStyle: const TextStyle(color: primaryBlue),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 16),
                         ),
                         items: [2, 4, 6, 8].map((count) {
                           return DropdownMenuItem<int>(
@@ -280,8 +467,9 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                               : '✅ No payment needed for 2 teams.',
                           style: TextStyle(
                               color: paymentAmount > 0
-                                  ? Colors.deepOrange
-                                  : Colors.green,
+                                  ? Colors.red.shade700 // Keep red for warning
+                                  : Colors
+                                      .green.shade700, // Keep green for success
                               fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -306,7 +494,18 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                         decoration: InputDecoration(
                           labelText: 'Type of Sport',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: primaryBlue.withOpacity(0.5)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: primaryBlue, width: 2),
+                          ),
+                          labelStyle: const TextStyle(color: primaryBlue),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 16),
                         ),
                         items: sports
                             .map((sport) => DropdownMenuItem(
@@ -333,48 +532,97 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    if (paymentAmount > 0) {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Payment Required'),
-                          content: Text(
-                              'You need to pay ₹$paymentAmount to proceed.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(ctx).pop();
-                              },
-                              child: const Text('Cancel'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.of(ctx).pop();
-                                _processPayment();
-                              },
-                              child: const Text('Pay Now'),
-                            ),
-                          ],
+              Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceEvenly, // Distribute space
+                children: [
+                  Expanded(
+                    // Make submit button take more space
+                    flex: 3,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (_formKey.currentState!.validate()) {
+                          if (paymentAmount > 0) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Payment Required'),
+                                content: Text(
+                                    'You need to pay ₹$paymentAmount to proceed.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                    },
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      _processPayment();
+                                    },
+                                    child: const Text('Pay Now'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else {
+                            _submitTournament();
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.check, color: textOnPrimary),
+                      label: Text(
+                        widget.isUpdate ? 'Update Tournament' : 'Submit',
+                        style:
+                            const TextStyle(fontSize: 16, color: textOnPrimary),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14), // Reduced padding
+                        backgroundColor: primaryBlue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    } else {
-                      _submitTournament();
-                    }
-                  }
-                },
-                icon: const Icon(Icons.check),
-                label: Text(widget.isUpdate ? 'Update Tournament' : 'Submit',
-                    style: const TextStyle(fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  backgroundColor: Colors.deepPurple,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
+                        elevation: 4, // Add elevation
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16), // Space between buttons
+                  Expanded(
+                    // Make share button smaller
+                    flex: 1,
+                    child: ElevatedButton(
+                      // Use ElevatedButton for consistent style, but with just icon
+                      onPressed: () {
+                        // Validate the form before attempting to share details
+                        if (_formKey.currentState!.validate()) {
+                          _sendWhatsAppMessage();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Please fill in all required fields before sharing.'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.all(
+                            14), // Square shape for icon button
+                        backgroundColor:
+                            accentBlue, // A different shade of blue for share
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                      ),
+                      child: const Icon(Icons.share,
+                          color: textOnPrimary, size: 24), // Only icon
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -383,29 +631,52 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     );
   }
 
+  // Helper widget for building text input fields
   Widget _buildTextField(String label, {TextEditingController? controller}) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), // Slightly more rounded
+          borderSide: BorderSide(color: primaryBlue.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
+        ),
+        labelStyle: const TextStyle(color: primaryBlue),
+        contentPadding: const EdgeInsets.symmetric(
+            vertical: 14, horizontal: 16), // Better padding
       ),
       validator: (value) => value!.isEmpty ? 'Required' : null,
     );
   }
 
+  // Helper widget for building number input fields
   Widget _buildNumberField(String label, {TextEditingController? controller}) {
     return TextFormField(
       keyboardType: TextInputType.number,
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: primaryBlue.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
+        ),
+        labelStyle: const TextStyle(color: primaryBlue),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
       validator: (value) => value!.isEmpty ? 'Required' : null,
     );
   }
 
+  // Placeholder function for payment processing
   void _processPayment() async {
     await Future.delayed(const Duration(seconds: 2));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -417,6 +688,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     _submitTournament();
   }
 
+  // Function to submit or update tournament details to the API
   Future<void> _submitTournament() async {
     final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
 
