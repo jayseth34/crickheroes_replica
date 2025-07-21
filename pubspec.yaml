@@ -17,6 +17,7 @@ dependencies:
   intl: ^0.17.0
   signalr_core: ^1.1.1
   url_launcher: ^6.3.0
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
