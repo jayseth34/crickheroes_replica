@@ -85,7 +85,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // New: Admin User ID and Current User ID for conditional access
   final String _adminUserId = '9920279905'; // The static admin mobile number
   String _currentUserId =
-      '9920279909'; // Dummy current user ID, change for testing non-admin
+      '9920279905'; // Dummy current user ID, change for testing non-admin
 
   @override
   void initState() {
@@ -653,35 +653,52 @@ class _AuctionPageState extends State<AuctionPage> {
                           ],
                         ),
                       const SizedBox(height: 10), // Spacing below the switch
-                      if (_auctionPhase == 'setup')
+                      if (_auctionPhase == 'setup') // Auction is in setup phase
                         Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: _preparePlayersForMainAuction,
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text("Start Main Auction"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 16, horizontal: 32),
-                                  textStyle: const TextStyle(fontSize: 20),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              if (unsoldPlayers.isNotEmpty)
-                                ElevatedButton.icon(
-                                  onPressed: _preparePlayersForUnsoldAuction,
-                                  icon: const Icon(Icons.redo),
-                                  label: const Text(
-                                      "Start Unsold Players Auction"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orangeAccent,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16, horizontal: 32),
-                                    textStyle: const TextStyle(fontSize: 20),
-                                  ),
+                              if (isCurrentUserAdmin) // Admin sees start buttons
+                                Column(
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: _preparePlayersForMainAuction,
+                                      icon: const Icon(Icons.play_arrow),
+                                      label: const Text("Start Main Auction"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blueAccent,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16, horizontal: 32),
+                                        textStyle:
+                                            const TextStyle(fontSize: 20),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    if (unsoldPlayers.isNotEmpty)
+                                      ElevatedButton.icon(
+                                        onPressed:
+                                            _preparePlayersForUnsoldAuction,
+                                        icon: const Icon(Icons.redo),
+                                        label: const Text(
+                                            "Start Unsold Players Auction"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.orangeAccent,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16, horizontal: 32),
+                                          textStyle:
+                                              const TextStyle(fontSize: 20),
+                                        ),
+                                      ),
+                                  ],
+                                )
+                              else // Non-admin sees "Auction is yet to be started"
+                                const Text(
+                                  "Auction is yet to be started.",
+                                  style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey),
+                                  textAlign: TextAlign.center,
                                 ),
                             ],
                           ),
