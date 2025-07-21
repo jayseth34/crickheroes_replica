@@ -9,10 +9,13 @@ import 'package:http/http.dart' as http;
 class AddPlayerPage extends StatefulWidget {
   final int tournamentId;
   final String tournamentName;
+  final Map<String, dynamic>
+      tournament; // Added to receive the full tournament object
 
   const AddPlayerPage({
     required this.tournamentId,
     required this.tournamentName,
+    required this.tournament, // Initialize the new parameter
     Key? key,
   }) : super(key: key);
 
@@ -34,11 +37,52 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
 
   final List<String> genders = ['Male', 'Female', 'Other'];
   final List<String> handednessOptions = ['Right-handed', 'Left-handed'];
-  final List<String> roles = ['Batsman', 'Bowler', 'All-Rounder'];
+
+  // Define role options based on sport type
+  Map<String, List<String>> sportRoles = {
+    'Cricket': ['Batsman', 'Bowler', 'All-Rounder', 'Wicketkeeper'],
+    'Football': ['Striker', 'Midfielder', 'Defender', 'Goalkeeper'],
+    // Add more sports and their roles as needed
+  };
+
+  // This list will hold the roles currently displayed in the dropdown
+  List<String> currentRoles = [];
 
   File? _selectedImage;
   String? _base64Image;
   String? _imageFileName; // To store the filename
+
+  @override
+  void initState() {
+    super.initState();
+    // Use the sportType from the full tournament object
+    _updateRolesForSport(widget.tournament['sportType'] ?? '');
+  }
+
+  // Function to update roles based on the sport name
+  void _updateRolesForSport(String sportName) {
+    setState(() {
+      print('Updating roles for sport: $sportName'); // Debug print
+      // Convert sportName to lowercase for case-insensitive matching
+      String normalizedSportName = sportName.toLowerCase();
+
+      if (normalizedSportName.contains('cricket')) {
+        currentRoles = sportRoles['Cricket']!;
+      } else if (normalizedSportName.contains('football')) {
+        currentRoles = sportRoles['Football']!;
+      } else if (normalizedSportName.contains('badminton') ||
+          normalizedSportName.contains('table tennis') ||
+          normalizedSportName.contains('racquet')) {
+        currentRoles = []; // No roles for these sports
+        selectedRole = ''; // Set role to empty string for racquet sports
+      } else {
+        currentRoles =
+            []; // Default to no roles if sport not explicitly handled
+        selectedRole = ''; // Set role to empty string
+      }
+      print('Current roles after update: $currentRoles'); // Debug print
+    });
+  }
 
   Future<void> pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -79,9 +123,8 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     // Provide default empty strings if dropdown values are null to avoid issues with non-nullable C# properties
     request.fields['Gender'] = selectedGender ?? '';
     request.fields['Handedness'] = selectedHandedness ?? '';
-    request.fields['Role'] = selectedRole ?? '';
-    // If you need to include TeamId, uncomment and set its value here.
-    // request.fields['TeamId'] = 'null'; // Or the actual team ID if selected
+    request.fields['Role'] = selectedRole ??
+        ''; // Send the selected role (will be '' for racquet sports)
 
     // Add the image file to the request if one has been selected
     if (_base64Image != null && _imageFileName != null) {
@@ -206,6 +249,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                         options: genders,
                         onChanged: (val) =>
                             setState(() => selectedGender = val),
+                        isRequired: true, // Gender is always required
                       ),
                       const SizedBox(height: 16),
                       _buildDropdown(
@@ -214,14 +258,20 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                         options: handednessOptions,
                         onChanged: (val) =>
                             setState(() => selectedHandedness = val),
+                        isRequired: true, // Handedness is always required
                       ),
                       const SizedBox(height: 16),
-                      _buildDropdown(
-                        label: "Select Role",
-                        value: selectedRole,
-                        options: roles,
-                        onChanged: (val) => setState(() => selectedRole = val),
-                      ),
+                      // Conditionally display the role dropdown
+                      if (currentRoles.isNotEmpty)
+                        _buildDropdown(
+                          label: "Select Role",
+                          value: selectedRole,
+                          options: currentRoles, // Use the dynamic roles list
+                          onChanged: (val) =>
+                              setState(() => selectedRole = val),
+                          isRequired: true, // Role is required if visible
+                        ),
+                      if (currentRoles.isNotEmpty) const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -296,6 +346,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     required String? value,
     required List<String> options,
     required void Function(String?) onChanged,
+    bool isRequired = true, // Added isRequired parameter, default to true
   }) {
     return DropdownButtonFormField<String>(
       value: value,
@@ -315,7 +366,10 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
           .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
           .toList(),
       onChanged: onChanged,
-      validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+      // Only apply validator if isRequired is true and there are options to select from
+      validator: isRequired && options.isNotEmpty
+          ? (val) => val == null || val.trim().isEmpty ? 'Required' : null
+          : null,
     );
   }
 }

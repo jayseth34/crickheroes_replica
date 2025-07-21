@@ -6,17 +6,35 @@ import 'add_team_page.dart';
 import 'add_player_page.dart';
 import 'auction_page.dart';
 
+// Updated Tournament class to include sportType
 class Tournament {
   final int id;
   final String name;
+  final String? sportType; // Added sportType
+  final String?
+      startDate; // Added startDate for consistency and potential future use
 
-  Tournament({required this.id, required this.name});
+  Tournament(
+      {required this.id, required this.name, this.sportType, this.startDate});
 
   factory Tournament.fromJson(Map<String, dynamic> json) {
     return Tournament(
       id: json['id'],
       name: json['name'],
+      sportType: json['sportType'], // Parse sportType from JSON
+      startDate: json['startDate'], // Parse startDate from JSON
     );
+  }
+
+  // Helper to convert Tournament object to a Map for AddPlayerPage
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'sportType': sportType,
+      'startDate': startDate,
+      // Add other fields if AddPlayerPage needs them
+    };
   }
 }
 
@@ -31,8 +49,8 @@ class SearchTournamentPage extends StatefulWidget {
 
 class _SearchTournamentPageState extends State<SearchTournamentPage> {
   final TextEditingController searchController = TextEditingController();
-  List<Tournament> allTournaments = [];
-  List<Tournament> filteredTournaments = [];
+  List<Tournament> allTournaments = []; // Changed to use Tournament model
+  List<Tournament> filteredTournaments = []; // Changed to use Tournament model
   bool isLoading = true;
   bool isError = false;
 
@@ -79,7 +97,10 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
     final query = searchController.text.toLowerCase();
     setState(() {
       filteredTournaments = allTournaments
-          .where((t) => t.name.toLowerCase().contains(query))
+          .where((t) =>
+              t.name.toLowerCase().contains(query) ||
+              (t.sportType?.toLowerCase().contains(query) ??
+                  false)) // Filter by sportType too
           .toList();
     });
   }
@@ -110,6 +131,8 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
             builder: (_) => AddPlayerPage(
               tournamentId: tournament.id,
               tournamentName: tournament.name,
+              tournament: tournament
+                  .toMap(), // Pass the Tournament object converted to a Map
             ),
           ),
         );
@@ -130,7 +153,7 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
   String getModeLabel() {
     switch (widget.mode) {
       case 'addTeam':
-        return 'Add Teams 🏏';
+        return 'Add Teams �';
       case 'addPlayer':
         return 'Add Players 👤';
       case 'auction':

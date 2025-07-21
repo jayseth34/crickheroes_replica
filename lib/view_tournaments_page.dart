@@ -3,6 +3,28 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import 'tournament_detail_page.dart';
+import 'add_player_page.dart'; // Import the AddPlayerPage
+
+// Define the Tournament class with sportType (if not already globally defined)
+// If you have a shared models file, this can be removed from here.
+class Tournament {
+  final int id;
+  final String name;
+  final String? sportType; // Added sportType
+  final String? startDate; // Added startDate for display in subtitle
+
+  Tournament(
+      {required this.id, required this.name, this.sportType, this.startDate});
+
+  factory Tournament.fromJson(Map<String, dynamic> json) {
+    return Tournament(
+      id: json['id'],
+      name: json['name'],
+      sportType: json['sportType'], // Parse sportType from JSON
+      startDate: json['startDate'], // Parse startDate from JSON
+    );
+  }
+}
 
 class ViewTournamentsPage extends StatefulWidget {
   const ViewTournamentsPage({super.key});
@@ -13,8 +35,8 @@ class ViewTournamentsPage extends StatefulWidget {
 
 class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
   final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _allTournaments = [];
-  List<Map<String, dynamic>> _filteredTournaments = [];
+  List<Tournament> _allTournaments = []; // Changed to use Tournament model
+  List<Tournament> _filteredTournaments = []; // Changed to use Tournament model
   bool _isLoading = true;
 
   @override
@@ -37,12 +59,15 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
         _filteredTournaments = List.from(_allTournaments);
       } else {
         _filteredTournaments = _allTournaments.where((tournament) {
-          final name = tournament['name']?.toLowerCase() ?? '';
-          final sport = tournament['sportType']?.toLowerCase() ?? '';
-          final startDate = tournament['startDate']?.toLowerCase() ?? '';
+          final name = tournament.name.toLowerCase();
+          final sport = tournament.sportType?.toLowerCase() ??
+              ''; // Use sportType from model
+          final startDate = tournament.startDate?.toLowerCase() ??
+              ''; // Use startDate from model
           return name.contains(query) ||
               sport.contains(query) ||
-              formatDate(tournament['startDate'])
+              formatDate(tournament.startDate ??
+                      '') // Use formatDate with model property
                   .toLowerCase()
                   .contains(query) ||
               startDate.contains(query);
@@ -61,15 +86,8 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
         final List<dynamic> data = json.decode(response.body);
 
         setState(() {
-          _allTournaments = data.map<Map<String, dynamic>>((t) {
-            return {
-              'id': t['id'],
-              'name': t['name'],
-              'startDate': t['startDate'],
-              'sportType': t['sportType'],
-              'tournament': t, // full object for details page
-            };
-          }).toList();
+          _allTournaments =
+              data.map((t) => Tournament.fromJson(t)).toList(); // Use fromJson
           _filteredTournaments = List.from(_allTournaments);
           _isLoading = false;
         });
@@ -84,90 +102,8 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
     }
   }
 
-  Future<void> fetchTournamentsV1() async {
-    // Simulated delay to mimic async behavior
-    await Future.delayed(Duration(milliseconds: 500));
-
-    final List<Map<String, dynamic>> staticData = [
-      {
-        "id": 1,
-        "name": "IPL",
-        "startDate": "2025-05-25T00:00:00",
-        "endDate": "2026-05-25T00:00:00",
-        "location": "Mumbai",
-        "sportType": "Cricket",
-        "createdAt": "2025-05-25T08:55:06.826038",
-        "updatedAt": "2025-05-25T08:55:06.986297",
-        "numberOfTeams": null,
-        "teamWalletBalance": null,
-        "playersPerTeam": null,
-        "ownerName": null,
-        "basePrice": null,
-        "duration": null,
-        "matchDetail": null
-      },
-      {
-        "id": 2,
-        "name": "PPL",
-        "startDate": "2025-05-25T00:00:00",
-        "endDate": "2025-05-25T00:00:00",
-        "location": "Karachi",
-        "sportType": "Cricket",
-        "createdAt": "2025-05-25T09:31:23.507012",
-        "updatedAt": "2025-05-25T09:31:23.507013",
-        "numberOfTeams": null,
-        "teamWalletBalance": null,
-        "playersPerTeam": null,
-        "ownerName": null,
-        "basePrice": null,
-        "duration": null,
-        "matchDetail": null
-      },
-      {
-        "id": 3,
-        "name": "BBL",
-        "startDate": "2025-05-25T00:00:00",
-        "endDate": "2025-05-25T00:00:00",
-        "location": "Sydney",
-        "sportType": "Cricket",
-        "createdAt": "2025-05-25T09:51:13.847952",
-        "updatedAt": "2025-05-25T09:51:13.848042",
-        "numberOfTeams": null,
-        "teamWalletBalance": null,
-        "playersPerTeam": null,
-        "ownerName": null,
-        "basePrice": null,
-        "duration": null,
-        "matchDetail": null
-      },
-    ];
-
-    setState(() {
-      _allTournaments = staticData.map<Map<String, dynamic>>((t) {
-        return {
-          'id': t['id'],
-          'name': t['name'],
-          'startDate': t['startDate'],
-          'sportType': t['sportType'],
-          'endDate': t['endDate'],
-          'location': t['location'],
-          'createdAt': t['createdAt'],
-          'updatedAt': t['updatedAt'],
-          'numberOfTeams': t['numberOfTeams'],
-          'teamWalletBalance': t['teamWalletBalance'],
-          'playersPerTeam': t['playersPerTeam'],
-          'ownerName': t['ownerName'],
-          'basePrice': t['basePrice'],
-          'duration': t['duration'],
-          'matchDetail': t['matchDetail'],
-          'tournament': t,
-        };
-      }).toList();
-
-      _filteredTournaments = List.from(_allTournaments);
-      _isLoading = false;
-    });
-  }
+  // This method is kept for demonstration if you were using static data,
+  // but the primary fetchTournaments will use the API.
 
   String formatDate(String isoDate) {
     try {
@@ -222,7 +158,7 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20, vertical: 16),
                                 title: Text(
-                                  tournament['name'],
+                                  tournament.name,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
@@ -230,7 +166,7 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  "Sport: ${tournament['sportType']}  •  Starts: ${formatDate(tournament['startDate'])}",
+                                  "Sport: ${tournament.sportType ?? 'N/A'}  •  Starts: ${formatDate(tournament.startDate ?? '')}",
                                   style: TextStyle(
                                     color: Colors.grey.shade700,
                                     fontSize: 14,
@@ -245,9 +181,17 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => TournamentDetailPage(
-                                          tournament: tournament['tournament'],
-                                          matchId: tournament['id']),
+                                      builder: (_) => AddPlayerPage(
+                                        tournamentId: tournament.id,
+                                        tournamentName: tournament.name,
+                                        tournament: {
+                                          'id': tournament.id,
+                                          'name': tournament.name,
+                                          'sportType': tournament.sportType,
+                                          'startDate': tournament.startDate,
+                                          // Add other fields if needed by AddPlayerPage
+                                        },
+                                      ),
                                     ),
                                   );
                                 },
