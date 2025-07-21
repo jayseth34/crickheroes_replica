@@ -19,7 +19,7 @@ class TournamentDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5, // Increased to 5 for the new 'Stats' tab
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -34,23 +34,23 @@ class TournamentDetailPage extends StatelessWidget {
             labelColor: Colors.amber,
             unselectedLabelColor: Colors.white,
             indicatorColor: Colors.amber,
+            isScrollable: true, // Make tabs scrollable if many
             tabs: [
               Tab(text: 'About'),
               Tab(text: 'Fixtures'),
               Tab(text: 'Teams'),
               Tab(text: 'Points Table'),
+              Tab(text: 'Stats'), // New Stats Tab
             ],
           ),
         ),
         body: TabBarView(
           children: [
             AboutTab(tournament: tournament, isAdmin: isAdmin),
-            // Pass the entire tournament map to FixturesTab
-            FixturesTab(
-                tournament:
-                    tournament), // matchId no longer needed directly here
+            FixturesTab(tournament: tournament),
             const TeamsTab(),
             const PointsTableTab(),
+            const StatsTab(), // New Stats Tab Content
           ],
         ),
       ),
@@ -164,6 +164,22 @@ class _FixturesTabState extends State<FixturesTab> {
       'venue': 'Court 1',
       'score': '21-15, 21-18',
     },
+    {
+      'matchId': '4',
+      'teamA': 'Team Alpha',
+      'teamB': 'Team Beta',
+      'date': '2025-06-05',
+      'venue': 'Arena X',
+      'score': 'Upcoming',
+    },
+    {
+      'matchId': '5',
+      'teamA': 'Player A',
+      'teamB': 'Player B',
+      'date': '2025-06-10',
+      'venue': 'Court Y',
+      'score': 'Upcoming',
+    },
   ];
 
   final DateFormat formatter = DateFormat('yyyy-MM-dd');
@@ -192,6 +208,7 @@ class _FixturesTabState extends State<FixturesTab> {
         return AlertDialog(
           title: const Text('Add Fixture'),
           content: SingleChildScrollView(
+            // Added SingleChildScrollView for dialog content
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -337,13 +354,14 @@ class _FixturesTabState extends State<FixturesTab> {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Column(
+                // Use Column to ensure text wraps
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("📅 ${match['date']}"),
                   Text("📍 ${match['venue']}"),
                   Text(isUpcoming
                       ? "Status: Upcoming"
-                      : "📊 Score: ${match['score']}"),
+                      : "🏆 Score: ${match['score']}"),
                 ],
               ),
               trailing: IconButton(
@@ -519,6 +537,7 @@ class PointsTableTab extends StatelessWidget {
             ),
           ),
         ),
+        // Ensures the DataTable is horizontally scrollable
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
@@ -545,6 +564,301 @@ class PointsTableTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// New StatsTab Widget - now StatefulWidget
+class StatsTab extends StatefulWidget {
+  const StatsTab({super.key});
+
+  @override
+  State<StatsTab> createState() => _StatsTabState();
+}
+
+class _StatsTabState extends State<StatsTab> {
+  // Default selected category
+  String _selectedStatCategory = 'Most Runs';
+
+  // List of available stat categories for the dropdown
+  final List<String> _statCategories = [
+    'Most Runs',
+    'Most Fours',
+    'Most Sixes',
+    'Most Wickets',
+    'Best Economy',
+    'Best Bowlers',
+    'Most Points Scored', // Added for racquet sports
+  ];
+
+  // Mock data for various stats
+  final List<Map<String, dynamic>> mostRuns = const [
+    {'name': 'Player Runs A', 'runs': 750},
+    {'name': 'Player Runs B', 'runs': 680},
+    {'name': 'Player Runs C', 'runs': 620},
+  ];
+
+  final List<Map<String, dynamic>> bestBowlers = const [
+    {'name': 'Player X', 'wickets': 15, 'economy': 6.5},
+    {'name': 'Player Y', 'wickets': 12, 'economy': 7.0},
+    {'name': 'Player Z', 'wickets': 10, 'economy': 6.0},
+  ];
+
+  final List<Map<String, dynamic>> mostFours = const [
+    {'name': 'Player A', 'fours': 50},
+    {'name': 'Player B', 'fours': 45},
+    {'name': 'Player C', 'fours': 40},
+  ];
+
+  final List<Map<String, dynamic>> mostSixes = const [
+    {'name': 'Player D', 'sixes': 30},
+    {'name': 'Player E', 'sixes': 25},
+    {'name': 'Player F', 'sixes': 20},
+  ];
+
+  final List<Map<String, dynamic>> mostWickets = const [
+    {'name': 'Player G', 'wickets': 18},
+    {'name': 'Player H', 'wickets': 16},
+    {'name': 'Player I', 'wickets': 14},
+  ];
+
+  final List<Map<String, dynamic>> bestEconomy = const [
+    {'name': 'Player J', 'economy': 5.5},
+    {'name': 'Player K', 'economy': 5.8},
+    {'name': 'Player L', 'economy': 6.2},
+  ];
+
+  // Mock data for Most Points Scored
+  final List<Map<String, dynamic>> mostPointsScored = const [
+    {'name': 'Racquet Player 1', 'points': 250},
+    {'name': 'Racquet Player 2', 'points': 220},
+    {'name': 'Racquet Player 3', 'points': 190},
+  ];
+
+  // Helper method to get the data based on the selected category
+  List<Map<String, dynamic>> _getCurrentStatsData() {
+    switch (_selectedStatCategory) {
+      case 'Most Runs':
+        return mostRuns;
+      case 'Most Fours':
+        return mostFours;
+      case 'Most Sixes':
+        return mostSixes;
+      case 'Most Wickets':
+        return mostWickets;
+      case 'Best Economy':
+        return bestEconomy;
+      case 'Best Bowlers':
+        return bestBowlers;
+      case 'Most Points Scored':
+        return mostPointsScored;
+      default:
+        return [];
+    }
+  }
+
+  // Helper method to get column headers based on the selected category
+  List<String> _getCurrentColumnHeaders() {
+    switch (_selectedStatCategory) {
+      case 'Most Runs':
+        return ['Player', 'Runs'];
+      case 'Most Fours':
+        return ['Player', 'Fours'];
+      case 'Most Sixes':
+        return ['Player', 'Sixes'];
+      case 'Most Wickets':
+        return ['Player', 'Wickets'];
+      case 'Best Economy':
+        return ['Player', 'Economy'];
+      case 'Best Bowlers':
+        return ['Player', 'Wickets', 'Economy'];
+      case 'Most Points Scored':
+        return ['Player', 'Points'];
+      default:
+        return [];
+    }
+  }
+
+  // Helper method to build DataCells based on the selected category
+  List<DataCell> _getCurrentRowBuilder(Map<String, dynamic> data) {
+    switch (_selectedStatCategory) {
+      case 'Most Runs':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['runs'].toString())),
+        ];
+      case 'Most Fours':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['fours'].toString())),
+        ];
+      case 'Most Sixes':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['sixes'].toString())),
+        ];
+      case 'Most Wickets':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['wickets'].toString())),
+        ];
+      case 'Best Economy':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['economy'].toString())),
+        ];
+      case 'Best Bowlers':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['wickets'].toString())),
+          DataCell(Text(data['economy'].toString())),
+        ];
+      case 'Most Points Scored':
+        return [
+          DataCell(Text(data['name'])),
+          DataCell(Text(data['points'].toString())),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Dropdown for selecting stats category
+          Card(
+            margin: const EdgeInsets.only(bottom: 20),
+            elevation: 4,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedStatCategory,
+                  icon: const Icon(Icons.arrow_drop_down,
+                      color: Colors.deepPurple),
+                  iconSize: 24,
+                  elevation: 16,
+                  style: const TextStyle(
+                      color: Colors.deepPurple,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedStatCategory = newValue!;
+                    });
+                  },
+                  items: _statCategories
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+
+          // Display the selected stats section
+          _buildStatsSection(
+            context,
+            _selectedStatCategory,
+            _getCurrentStatsData(),
+            _getCurrentColumnHeaders(),
+            _getCurrentRowBuilder,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(
+      BuildContext context,
+      String title,
+      List<Map<String, dynamic>> data,
+      List<String> columnHeaders,
+      List<DataCell> Function(Map<String, dynamic>) rowBuilder) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 20),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                Colors.deepPurple.shade400,
+                Colors.deepPurple.shade700
+              ]),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            width: double.infinity,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            // Ensure horizontal scrollability for tables
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing:
+                  60, // Increased spacing between columns for better look
+              horizontalMargin: 16, // Margin from the card edges
+              dataRowMinHeight: 40, // Minimum height for data rows
+              dataRowMaxHeight: 60, // Maximum height for data rows
+              headingRowHeight: 50, // Height for heading row
+              dividerThickness: 1.5, // Thicker dividers for better separation
+              decoration: BoxDecoration(
+                // Added border to the table
+                border: Border.all(color: Colors.grey.shade300, width: 1),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(12)),
+              ),
+              headingRowColor: MaterialStateProperty.all(Colors.grey[200]),
+              dataRowColor: MaterialStateProperty.all(
+                  Colors.white), // Consistent white background for data rows
+              columns: columnHeaders
+                  .map((header) => DataColumn(
+                        label: Text(
+                          header,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors
+                                  .deepPurple), // Enhanced header text style
+                        ),
+                      ))
+                  .toList(),
+              rows:
+                  data.map((item) => DataRow(cells: rowBuilder(item))).toList(),
+            ),
+          ),
+          if (data.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Center(
+                child: Text('No data available for $title.',
+                    style: TextStyle(color: Colors.grey[600])),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

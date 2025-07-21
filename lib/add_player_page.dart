@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data'; // Import for Uint8List
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -33,10 +34,11 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
 
   final List<String> genders = ['Male', 'Female', 'Other'];
   final List<String> handednessOptions = ['Right-handed', 'Left-handed'];
-  final List<String> roles = ['Batsman', 'Bowler', 'All-Rounder', 'Goalkeeper'];
+  final List<String> roles = ['Batsman', 'Bowler', 'All-Rounder'];
 
   File? _selectedImage;
   String? _base64Image;
+  String? _imageFileName; // To store the filename
 
   Future<void> pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -47,47 +49,95 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
       setState(() {
         _selectedImage = File(image.path);
         _base64Image = base64Encode(bytes);
+        _imageFileName = image.name; // Store the original filename
+        // Debug print to confirm image path and base64 string
+        print('Image selected path: ${image.path}');
+        print('Base64 image length: ${_base64Image?.length ?? 0}');
+        print('Image filename: $_imageFileName');
       });
+    } else {
+      print('No image selected.');
     }
   }
 
   Future<void> savePlayer() async {
+    // Define the API endpoint URL
     final url =
         Uri.parse("https://sportsdecor.somee.com/api/Player/SavePlayer");
 
-    final Map<String, dynamic> playerData = {
-      "tournamentId": widget.tournamentId,
-      "name": nameController.text.trim(),
-      "village": villageController.text.trim(),
-      "age": int.tryParse(ageController.text.trim()) ?? 0,
-      "address": addressController.text.trim(),
-      "gender": selectedGender,
-      "handedness": selectedHandedness,
-      "role": selectedRole,
-      "profileImage": _base64Image ?? "",
-    };
+    // Create a MultipartRequest for sending form data, including files
+    var request = http.MultipartRequest('POST', url);
+
+    // Add text fields to the request. The field names must match the properties in your C# PlayerDto.
+    request.fields['TournamentId'] = widget.tournamentId.toString();
+    request.fields['Name'] = nameController.text.trim();
+    request.fields['Village'] = villageController.text.trim();
+    // Convert age to string, handling potential parsing errors
+    request.fields['Age'] =
+        (int.tryParse(ageController.text.trim()) ?? 0).toString();
+    request.fields['Address'] = addressController.text.trim();
+    // Provide default empty strings if dropdown values are null to avoid issues with non-nullable C# properties
+    request.fields['Gender'] = selectedGender ?? '';
+    request.fields['Handedness'] = selectedHandedness ?? '';
+    request.fields['Role'] = selectedRole ?? '';
+    // If you need to include TeamId, uncomment and set its value here.
+    // request.fields['TeamId'] = 'null'; // Or the actual team ID if selected
+
+    // Add the image file to the request if one has been selected
+    if (_base64Image != null && _imageFileName != null) {
+      // Decode the base64 string back to bytes
+      Uint8List imageBytes = base64Decode(_base64Image!);
+      request.files.add(http.MultipartFile.fromBytes(
+        'ProfileImage', // This key must exactly match the 'ProfileImage' property name in your C# PlayerDto
+        imageBytes,
+        filename: _imageFileName, // Use the stored original filename
+      ));
+    }
 
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(playerData),
-      );
+      // Send the request and await the streamed response
+      final streamedResponse = await request.send();
+      // Convert the streamed response to a regular HTTP response
+      final response = await http.Response.fromStream(streamedResponse);
 
+      // Check if the request was successful (status code 200 OK)
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Player added successfully")),
-        );
-        Navigator.pop(context);
+        // Parse the JSON response body
+        final responseData = jsonDecode(response.body);
+        // Check the 'success' flag from the API response
+        if (responseData['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    responseData['message'] ?? "Player added successfully")),
+          );
+          // Navigate back after successful player addition
+          Navigator.pop(context);
+        } else {
+          // Show error message from API if available, otherwise a generic one
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content:
+                    Text(responseData['message'] ?? "Failed to add player")),
+          );
+        }
       } else {
+        // Handle non-200 status codes (e.g., server errors, validation errors)
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to add player")),
+          SnackBar(
+              content: Text(
+                  "Failed to add player. Status Code: ${response.statusCode}")),
         );
+        // Print the response body for debugging purposes
+        print("Response body: ${response.body}");
       }
     } catch (e) {
+      // Catch any exceptions during the API call (e.g., network errors)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: ${e.toString()}")),
       );
+      // Print the error for debugging
+      print("Error during API call: ${e.toString()}");
     }
   }
 
@@ -120,8 +170,9 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                 child: CircleAvatar(
                   radius: 50,
                   backgroundColor: Colors.grey.shade300,
-                  backgroundImage: _selectedImage != null
-                      ? FileImage(_selectedImage!)
+                  // Changed this line to use MemoryImage from base64 string
+                  backgroundImage: _base64Image != null
+                      ? MemoryImage(base64Decode(_base64Image!))
                       : null,
                   child: _selectedImage == null
                       ? Icon(Icons.camera_alt, size: 40, color: Colors.black45)
@@ -178,8 +229,19 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
               const SizedBox(height: 30),
               ElevatedButton.icon(
                 onPressed: () {
-                  if (_formKey.currentState!.validate()) {
+                  // Validate the form before attempting to save the player
+                  final isValid = _formKey.currentState!.validate();
+                  print('Form validation result: $isValid'); // Debug print
+                  if (isValid) {
                     savePlayer();
+                  } else {
+                    // Show a SnackBar if validation fails
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Please fill in all required fields."),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 },
                 icon: const Icon(Icons.check),
@@ -202,6 +264,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     );
   }
 
+  // Helper widget to build a TextFormField
   Widget _buildTextField(String label,
       {required TextEditingController controller,
       bool isRequired = false,
@@ -227,6 +290,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     );
   }
 
+  // Helper widget to build a DropdownButtonFormField
   Widget _buildDropdown({
     required String label,
     required String? value,
