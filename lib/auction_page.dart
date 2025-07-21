@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert'; // Required for jsonEncode and jsonDecode
 import 'package:uuid/uuid.dart'; // Required for generating unique IDs
+// Removed: import 'package:url_launcher/url_launcher.dart'; // No longer needed as WhatsApp integration is removed
 
 class AuctionPage extends StatefulWidget {
   final String tournamentName;
@@ -17,6 +18,8 @@ class _AuctionPageState extends State<AuctionPage> {
   // In a real application, this would be your actual backend URL.
   // For this example, we'll use a placeholder that won't actually work without a backend.
   final String _baseUrl = 'https://your-backend-api.com/api/Tournament';
+  // Removed: _whatsAppApiUrl as WhatsApp integration is removed.
+
   final Uuid _uuid = const Uuid(); // Instance to generate unique IDs
 
   final int basePrice = 100;
@@ -75,6 +78,14 @@ class _AuctionPageState extends State<AuctionPage> {
 
   // List of participating teams with their wallets and logos (mutable)
   final List<Map<String, dynamic>> teams = [];
+
+  // Admin mode toggle
+  bool _isAdmin = true; // Set to true by default for admin functionality
+
+  // New: Admin User ID and Current User ID for conditional access
+  final String _adminUserId = '9920279905'; // The static admin mobile number
+  String _currentUserId =
+      '9920279909'; // Dummy current user ID, change for testing non-admin
 
   @override
   void initState() {
@@ -359,6 +370,107 @@ class _AuctionPageState extends State<AuctionPage> {
     // Removed _saveAuctionStateToBackend() call here as per request.
   }
 
+  // Removed: _launchWhatsApp function as WhatsApp integration is removed.
+
+  // Function to show a dialog with players bought by a specific team
+  void _showTeamPlayersDialog(String teamName) {
+    final playersInTeam =
+        soldPlayers.where((player) => player['soldTo'] == teamName).toList();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: Center(
+            child: Text(
+              '$teamName Players',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.blueGrey,
+              ),
+            ),
+          ),
+          content: playersInTeam.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text(
+                    'No players have been bought by this team yet.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                )
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: playersInTeam.map((player) {
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 2),
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.person_outline,
+                                  color: Colors.deepPurple, size: 28),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      player['playerName'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Sold for: ₹${player['price']}',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+          actions: <Widget>[
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Close', style: TextStyle(fontSize: 16)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Function to assign the player to the selected team
   void assignPlayer() {
     if (selectedTeam == null) return;
@@ -490,6 +602,9 @@ class _AuctionPageState extends State<AuctionPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine if the current user is an admin
+    bool isCurrentUserAdmin = (_currentUserId == _adminUserId);
+
     return DefaultTabController(
       length: 4,
       child: Scaffold(
@@ -514,6 +629,30 @@ class _AuctionPageState extends State<AuctionPage> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
+                      // Admin/Non-Admin Toggle - Only visible to admin
+                      if (isCurrentUserAdmin)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            const Text('Admin Mode'),
+                            Switch(
+                              value: _isAdmin,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isAdmin = value;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Switched to ${_isAdmin ? 'Admin' : 'Non-Admin'} Mode'),
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 10), // Spacing below the switch
                       if (_auctionPhase == 'setup')
                         Center(
                           child: Column(
@@ -671,7 +810,7 @@ class _AuctionPageState extends State<AuctionPage> {
                             const Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'Teams (Tap to Raise Bid)',
+                                'Teams (Tap to Interact)',
                                 style: TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.bold),
                               ),
@@ -683,7 +822,15 @@ class _AuctionPageState extends State<AuctionPage> {
                               children: teams.map((team) {
                                 final isSelected = team['name'] == selectedTeam;
                                 return GestureDetector(
-                                  onTap: () => increaseBid(team['name']),
+                                  onTap: () {
+                                    if (_isAdmin && isCurrentUserAdmin) {
+                                      // Only admin can bid when in admin mode
+                                      increaseBid(team['name']);
+                                    } else {
+                                      // Non-admin users or admin in non-admin mode see players
+                                      _showTeamPlayersDialog(team['name']);
+                                    }
+                                  },
                                   child: Column(
                                     children: [
                                       CircleAvatar(
@@ -729,10 +876,12 @@ class _AuctionPageState extends State<AuctionPage> {
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    onPressed:
-                                        selectedTeam != null && soldTo == null
-                                            ? assignPlayer
-                                            : null,
+                                    onPressed: selectedTeam != null &&
+                                            soldTo == null &&
+                                            _isAdmin &&
+                                            isCurrentUserAdmin // Only admin can assign
+                                        ? assignPlayer
+                                        : null,
                                     icon: const Icon(Icons.gavel),
                                     label: const Text("Assign Player"),
                                     style: ElevatedButton.styleFrom(
@@ -745,8 +894,11 @@ class _AuctionPageState extends State<AuctionPage> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    onPressed:
-                                        soldTo == null ? markUnsold : null,
+                                    onPressed: soldTo == null &&
+                                            _isAdmin &&
+                                            isCurrentUserAdmin // Only admin can mark unsold
+                                        ? markUnsold
+                                        : null,
                                     icon: const Icon(Icons.cancel),
                                     label: const Text("Mark Unsold"),
                                     style: ElevatedButton.styleFrom(
@@ -760,7 +912,11 @@ class _AuctionPageState extends State<AuctionPage> {
                             ),
                             const SizedBox(height: 12),
                             ElevatedButton.icon(
-                              onPressed: soldTo == null ? resetBid : null,
+                              onPressed: soldTo == null &&
+                                      _isAdmin &&
+                                      isCurrentUserAdmin // Only admin can reset bid
+                                  ? resetBid
+                                  : null,
                               icon: const Icon(Icons.refresh),
                               label: const Text("Reset Bid"),
                               style: ElevatedButton.styleFrom(
@@ -966,17 +1122,19 @@ class _AuctionPageState extends State<AuctionPage> {
                                         ],
                                       ),
                                     ),
-                                    IconButton(
-                                      icon: Icon(
-                                        isFavorite
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color: isFavorite
-                                            ? Colors.red
-                                            : Colors.grey,
+                                    // Favorites button - Only visible to admin
+                                    if (isCurrentUserAdmin)
+                                      IconButton(
+                                        icon: Icon(
+                                          isFavorite
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          color: isFavorite
+                                              ? Colors.red
+                                              : Colors.grey,
+                                        ),
+                                        onPressed: () => toggleFavorite(index),
                                       ),
-                                      onPressed: () => toggleFavorite(index),
-                                    ),
                                   ],
                                 ),
                               ),
