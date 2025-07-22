@@ -2,7 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert'; // Required for jsonEncode and jsonDecode
 import 'package:uuid/uuid.dart'; // Required for generating unique IDs
-// Removed: import 'package:url_launcher/url_launcher.dart'; // No longer needed as WhatsApp integration is removed
+
+// Custom painter to draw the angled background for player name/category
+class AngledBackgroundPainter extends CustomPainter {
+  final Color color;
+  final double angleFactor; // Controls the angle of the cut
+
+  AngledBackgroundPainter({required this.color, this.angleFactor = 0.95});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final path = Path();
+
+    // Define the points for the angled shape
+    path.moveTo(0, 0); // Top-left
+    path.lineTo(size.width * angleFactor, 0); // Top-right (slightly cut)
+    path.lineTo(size.width, size.height); // Bottom-right (angled down)
+    path.lineTo(
+        size.width * (1 - angleFactor), size.height); // Bottom-left (angled up)
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
+
+// New Custom painter for the background lines
+class LinePatternPainter extends CustomPainter {
+  final Color lineColor;
+  final Color backgroundColor;
+
+  LinePatternPainter({required this.lineColor, required this.backgroundColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Fill the background
+    final backgroundPaint = Paint()..color = backgroundColor;
+    canvas.drawRect(Offset.zero & size, backgroundPaint);
+
+    final linePaint = Paint()
+      ..color = lineColor.withOpacity(0.1) // Subtle lines
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    // Draw diagonal lines from top-left to bottom-right
+    double spacing = 50.0; // Spacing between lines
+    for (double i = -size.height; i < size.width; i += spacing) {
+      canvas.drawLine(
+          Offset(i, 0), Offset(i + size.height, size.height), linePaint);
+    }
+
+    // Draw diagonal lines from top-right to bottom-left
+    for (double i = 0; i < size.width + size.height; i += spacing) {
+      canvas.drawLine(
+          Offset(i, 0), Offset(i - size.height, size.height), linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
 
 class AuctionPage extends StatefulWidget {
   final String tournamentName;
@@ -15,16 +81,17 @@ class AuctionPage extends StatefulWidget {
 
 class _AuctionPageState extends State<AuctionPage> {
   // Base URL for your simulated backend API
-  // In a real application, this would be your actual backend URL.
-  // For this example, we'll use a placeholder that won't actually work without a backend.
   final String _baseUrl = 'https://your-backend-api.com/api/Tournament';
-  // Removed: _whatsAppApiUrl as WhatsApp integration is removed.
 
   final Uuid _uuid = const Uuid(); // Instance to generate unique IDs
 
-  final int basePrice = 100;
-  int currentBid = 100;
+  final int basePrice = 400; // Changed to 400 PTS as per image
+  int currentBid = 400; // Changed to 400 PTS as per image
+  // Removed: int? previousBid;
+  // Removed: int? formerBid;
+
   String playerName = "No Player"; // Current player being auctioned
+  String playerCategory = "N/A"; // Added player category
   String? selectedTeam; // The team that currently has the highest bid
   String? soldTo; // The team the player was sold to, or 'Unsold'
   int bidIncrement = 10; // Initial bid increment value
@@ -47,32 +114,38 @@ class _AuctionPageState extends State<AuctionPage> {
     {
       'name': 'Team A',
       'wallet': 1000,
-      'logo': 'https://via.placeholder.com/100/FF0000/FFFFFF?text=A',
+      'logo':
+          'https://placehold.co/100x100/FF5733/FFFFFF?text=Team+A', // Distinct color
     },
     {
       'name': 'Morkhiya stallions',
       'wallet': 800,
-      'logo': 'https://via.placeholder.com/100/00FF00/FFFFFF?text=B',
+      'logo':
+          'https://placehold.co/100x100/33FF57/000000?text=Stallions', // Distinct color
     },
     {
       'name': 'RSBL',
       'wallet': 600,
-      'logo': 'https://via.placeholder.com/100/0000FF/FFFFFF?text=C',
+      'logo':
+          'https://placehold.co/100x100/3357FF/FFFFFF?text=RSBL', // Distinct color
     },
     {
       'name': 'Riddhi siddhi bullions limited',
       'wallet': 600,
-      'logo': 'https://via.placeholder.com/100/0000FF/FFFFFF?text=C',
+      'logo':
+          'https://placehold.co/100x100/FF33A1/000000?text=R+S+B+L', // Distinct color
     },
     {
       'name': 'The shah and nahar cup',
       'wallet': 600,
-      'logo': 'https://via.placeholder.com/100/0000FF/FFFFFF?text=C',
+      'logo':
+          'https://placehold.co/100x100/33FFF5/000000?text=Cup', // Distinct color
     },
     {
       'name': 'Team F',
       'wallet': 600,
-      'logo': 'https://via.placeholder.com/100/0000FF/FFFFFF?text=C',
+      'logo':
+          'https://placehold.co/100x100/A133FF/FFFFFF?text=Team+F', // Distinct color
     },
   ];
 
@@ -116,7 +189,10 @@ class _AuctionPageState extends State<AuctionPage> {
           'auctionPhase': _auctionPhase,
           'currentPlayerIndex': _currentPlayerIndex,
           'currentBid': currentBid,
+          // Removed: 'previousBid': previousBid,
+          // Removed: 'formerBid': formerBid,
           'playerName': playerName,
+          'playerCategory': playerCategory, // Save player category
           'selectedTeam': selectedTeam,
           'soldTo': soldTo,
           'bidIncrement': bidIncrement,
@@ -145,9 +221,6 @@ class _AuctionPageState extends State<AuctionPage> {
     final String playerId =
         playerToUpdate['id'] as String; // Use the player's unique ID
 
-    // Example endpoint for saving favorite status
-    // User provided: 'https://sportsdecor.somee.com/api/Tournament/saveFavouritesplayer/$id'
-    // Adapting for generic player status update
     final String url = '$_baseUrl/updatePlayerStatus/$tournamentId/$playerId';
 
     try {
@@ -160,7 +233,7 @@ class _AuctionPageState extends State<AuctionPage> {
           'isFavorite': playerToUpdate['isFavorite'],
           'status': playerToUpdate['status'], // 'Sold', 'Unsold', 'Upcoming'
           'soldPrice': playerToUpdate['soldPrice'], // Only if applicable
-          // Add any other relevant player fields you want to save individually
+          'playerCategory': playerToUpdate['playerCategory'], // Update category
         }),
       );
 
@@ -191,7 +264,11 @@ class _AuctionPageState extends State<AuctionPage> {
           _auctionPhase = data['auctionPhase'] ?? 'setup';
           _currentPlayerIndex = data['currentPlayerIndex'] ?? 0;
           currentBid = data['currentBid'] ?? basePrice;
+          // Removed: previousBid = data['previousBid'];
+          // Removed: formerBid = data['formerBid'];
           playerName = data['playerName'] ?? "No Player";
+          playerCategory =
+              data['playerCategory'] ?? "N/A"; // Load player category
           selectedTeam = data['selectedTeam'];
           soldTo = data['soldTo'];
           bidIncrement = data['bidIncrement'] ?? 10;
@@ -249,19 +326,34 @@ class _AuctionPageState extends State<AuctionPage> {
   }
 
   // Function to simulate fetching an initial set of players from a backend API
-  // This is called when no existing state is found for a tournament or on API load failure.
   void _fetchInitialPlayersFromBackend() {
-    // Clear existing players to ensure a fresh "fetch" or default set
     allPlayers.clear();
+    final List<String> categories = [
+      'Batsman',
+      'Bowler',
+      'All Rounder',
+      'Wicketkeeper'
+    ];
     for (int i = 1; i <= 15; i++) {
       allPlayers.add({
         'id': _uuid.v4(), // Generate a unique ID for each player
         'playerName': "Player $i",
+        'playerCategory':
+            categories[i % categories.length], // Assign a category
         'price': basePrice,
         'status': 'Upcoming',
         'isFavorite': false,
       });
     }
+    // Example for AAKASH TIWARI as in the image
+    allPlayers.insert(0, {
+      'id': _uuid.v4(),
+      'playerName': "AAKASH TIWARI",
+      'playerCategory': "ALL ROUNDER",
+      'price': 400, // Explicitly set for this player
+      'status': 'Upcoming',
+      'isFavorite': true,
+    });
   }
 
   // Function to initialize the default teams list
@@ -276,7 +368,11 @@ class _AuctionPageState extends State<AuctionPage> {
       final nextPlayer = _playersToAuction[_currentPlayerIndex];
       setState(() {
         playerName = nextPlayer['playerName'] as String;
+        playerCategory =
+            nextPlayer['playerCategory'] as String; // Load category
         currentBid = basePrice; // Reset bid for the new player
+        // Removed: previousBid = null;
+        // Removed: formerBid = null;
         selectedTeam = null;
         soldTo = null;
         _bidIncrementController.text =
@@ -288,7 +384,10 @@ class _AuctionPageState extends State<AuctionPage> {
       // All players for the current phase have been auctioned
       setState(() {
         playerName = "Auction Finished!";
+        playerCategory = "N/A"; // Reset category
         currentBid = basePrice;
+        // Removed: previousBid = null;
+        // Removed: formerBid = null;
         selectedTeam = null;
         soldTo = null;
         if (_auctionPhase == 'mainAuction') {
@@ -335,7 +434,6 @@ class _AuctionPageState extends State<AuctionPage> {
     _playersToAuction =
         allPlayers.where((player) => player['status'] == 'Unsold').toList();
 
-    // Optionally sort unsold players (e.g., by name or original order)
     _playersToAuction.sort((a, b) =>
         (a['playerName'] as String).compareTo(b['playerName'] as String));
 
@@ -364,13 +462,12 @@ class _AuctionPageState extends State<AuctionPage> {
     }
 
     setState(() {
-      currentBid += bidIncrement;
+      // Removed: formerBid = previousBid;
+      // Removed: previousBid = currentBid;
+      currentBid += bidIncrement; // Update current bid
       selectedTeam = teamName;
     });
-    // Removed _saveAuctionStateToBackend() call here as per request.
   }
-
-  // Removed: _launchWhatsApp function as WhatsApp integration is removed.
 
   // Function to show a dialog with players bought by a specific team
   void _showTeamPlayersDialog(String teamName) {
@@ -385,7 +482,8 @@ class _AuctionPageState extends State<AuctionPage> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           title: Center(
             child: Text(
-              '$teamName Players',
+              // Updated title to show count of players bought vs total players
+              '$teamName Players (${playersInTeam.length} / ${allPlayers.length} bought)',
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
@@ -433,7 +531,7 @@ class _AuctionPageState extends State<AuctionPage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Sold for: ₹${player['price']}',
+                                      'Sold for: ${player['price']} PTS', // Changed to PTS
                                       style: const TextStyle(
                                         fontSize: 14,
                                         color: Colors.green,
@@ -489,7 +587,7 @@ class _AuctionPageState extends State<AuctionPage> {
 
     setState(() {
       soldTo = selectedTeam;
-      team['wallet'] -= currentBid;
+      team['wallet'] -= currentBid; // Deduct wallet balance
 
       final playerIndexInAllPlayers =
           allPlayers.indexWhere((p) => p['playerName'] == playerName);
@@ -513,7 +611,8 @@ class _AuctionPageState extends State<AuctionPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Player Assigned'),
-        content: Text('Player sold to $selectedTeam for ₹$currentBid'),
+        content: Text(
+            'Player sold to $selectedTeam for $currentBid PTS'), // Changed to PTS
         actions: [
           TextButton(
               onPressed: () {
@@ -568,6 +667,8 @@ class _AuctionPageState extends State<AuctionPage> {
   void resetBid() {
     setState(() {
       currentBid = basePrice;
+      // Removed: previousBid = null;
+      // Removed: formerBid = null;
       selectedTeam = null;
       _bidIncrementController.text = '10';
       bidIncrement = 10;
@@ -594,24 +695,51 @@ class _AuctionPageState extends State<AuctionPage> {
 
   // Function to explicitly re-fetch all players from the simulated backend
   Future<void> _refreshAllPlayersFromBackend() async {
-    // This function will now attempt to load the full state from the backend.
-    // The _loadAuctionStateFromBackend already handles fetching all players
-    // and falling back to dummy data if the fetch fails or returns empty.
     await _loadAuctionStateFromBackend();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine if the current user is an admin
     bool isCurrentUserAdmin = (_currentUserId == _adminUserId);
+
+    // Define custom colors
+    const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+    const Color accentOrange = Color(0xFFF26C4F);
+    const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+    const Color darkBlue = Color(0xFF0D082A); // Even darker blue for elements
+    const Color bidBoxColor = Color(0xFF2A1C63); // Color for bid display boxes
 
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Auction - ${widget.tournamentName}'),
+          backgroundColor: lightBlue, // App bar background
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // League Logo (Placeholder for now)
+              Image.network(
+                'https://placehold.co/40x40/FFD700/000000?text=MPL', // Example placeholder logo
+                height: 40,
+                width: 40,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget
+                    .tournamentName, // e.g., "MORAGAON PREMIER LEAGUE SEASON-04 2025"
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
           centerTitle: true,
           bottom: const TabBar(
+            indicatorColor: accentOrange, // Orange indicator for selected tab
+            labelColor: Colors.white, // White text for selected tab
+            unselectedLabelColor: Colors.grey, // Grey text for unselected tabs
             tabs: [
               Tab(icon: Icon(Icons.gavel), text: 'Auction'),
               Tab(icon: Icon(Icons.check_circle), text: 'Sold'),
@@ -620,549 +748,963 @@ class _AuctionPageState extends State<AuctionPage> {
             ],
           ),
         ),
-        body: TabBarView(
+        body: Stack(
+          // Use Stack to layer background and content
           children: [
-            // Tab 1: Main Auction View
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Admin/Non-Admin Toggle - Only visible to admin
-                      if (isCurrentUserAdmin)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            const Text('Admin Mode'),
-                            Switch(
-                              value: _isAdmin,
-                              onChanged: (value) {
-                                setState(() {
-                                  _isAdmin = value;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Switched to ${_isAdmin ? 'Admin' : 'Non-Admin'} Mode'),
-                                    duration: const Duration(seconds: 1),
-                                  ),
-                                );
-                              },
+            // Background with lines
+            Positioned.fill(
+              child: CustomPaint(
+                painter: LinePatternPainter(
+                  backgroundColor: primaryBlue, // The main background color
+                  lineColor: lightBlue, // Color of the lines
+                ),
+              ),
+            ),
+            // Existing content (TabBarView)
+            TabBarView(
+              children: [
+                // Tab 1: Main Auction View
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Admin/Non-Admin Toggle - Only visible to admin
+                          if (isCurrentUserAdmin)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'Admin Mode',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                                Switch(
+                                  value: _isAdmin,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _isAdmin = value;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Switched to ${_isAdmin ? 'Admin' : 'Non-Admin'} Mode'),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  activeColor: accentOrange,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      const SizedBox(height: 10), // Spacing below the switch
-                      if (_auctionPhase == 'setup') // Auction is in setup phase
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (isCurrentUserAdmin) // Admin sees start buttons
-                                Column(
-                                  children: [
+                          const SizedBox(height: 10),
+
+                          if (_auctionPhase == 'setup')
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (isCurrentUserAdmin)
+                                    Column(
+                                      children: [
+                                        ElevatedButton.icon(
+                                          onPressed:
+                                              _preparePlayersForMainAuction,
+                                          icon: const Icon(Icons.play_arrow),
+                                          label:
+                                              const Text("Start Main Auction"),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accentOrange,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 16, horizontal: 32),
+                                            textStyle:
+                                                const TextStyle(fontSize: 20),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        if (unsoldPlayers.isNotEmpty)
+                                          ElevatedButton.icon(
+                                            onPressed:
+                                                _preparePlayersForUnsoldAuction,
+                                            icon: const Icon(Icons.redo),
+                                            label: const Text(
+                                                "Start Unsold Players Auction"),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: lightBlue,
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 16,
+                                                      horizontal: 32),
+                                              textStyle:
+                                                  const TextStyle(fontSize: 20),
+                                              shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          10)),
+                                            ),
+                                          ),
+                                      ],
+                                    )
+                                  else
+                                    const Text(
+                                      "Auction is yet to be started.",
+                                      style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.grey),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                ],
+                              ),
+                            )
+                          else if (_auctionPhase == 'finished')
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    "Auction Finished!",
+                                    style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  if (unsoldPlayers.isNotEmpty)
                                     ElevatedButton.icon(
-                                      onPressed: _preparePlayersForMainAuction,
-                                      icon: const Icon(Icons.play_arrow),
-                                      label: const Text("Start Main Auction"),
+                                      onPressed:
+                                          _preparePlayersForUnsoldAuction,
+                                      icon: const Icon(Icons.redo),
+                                      label: const Text(
+                                          "Start Unsold Players Auction"),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blueAccent,
+                                        backgroundColor: lightBlue,
+                                        foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 16, horizontal: 32),
                                         textStyle:
                                             const TextStyle(fontSize: 20),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10)),
                                       ),
                                     ),
-                                    const SizedBox(height: 20),
-                                    if (unsoldPlayers.isNotEmpty)
-                                      ElevatedButton.icon(
-                                        onPressed:
-                                            _preparePlayersForUnsoldAuction,
-                                        icon: const Icon(Icons.redo),
-                                        label: const Text(
-                                            "Start Unsold Players Auction"),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.orangeAccent,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 16, horizontal: 32),
-                                          textStyle:
-                                              const TextStyle(fontSize: 20),
-                                        ),
-                                      ),
-                                  ],
-                                )
-                              else // Non-admin sees "Auction is yet to be started"
-                                const Text(
-                                  "Auction is yet to be started.",
-                                  style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey),
-                                  textAlign: TextAlign.center,
-                                ),
-                            ],
-                          ),
-                        )
-                      else if (_auctionPhase == 'finished')
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                "Auction Finished!",
-                                style: TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 20),
-                              if (unsoldPlayers
-                                  .isNotEmpty) // Only show if there are unsold players
-                                ElevatedButton.icon(
-                                  onPressed: _preparePlayersForUnsoldAuction,
-                                  icon: const Icon(Icons.redo),
-                                  label: const Text(
-                                      "Start Unsold Players Auction"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orangeAccent,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16, horizontal: 32),
-                                    textStyle: const TextStyle(fontSize: 20),
-                                  ),
-                                ),
-                              const SizedBox(height: 20),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    _auctionPhase =
-                                        'setup'; // Go back to setup to restart
-                                    _currentPlayerIndex = 0;
-                                    playerName = "No Player";
-                                    currentBid = basePrice;
-                                    selectedTeam = null;
-                                    soldTo = null;
-                                    bidIncrement = 10;
-                                    _bidIncrementController.text = '10';
-                                    allPlayers.clear();
-                                    soldPlayers.clear();
-                                    unsoldPlayers.clear();
-                                    _fetchInitialPlayersFromBackend(); // Re-initialize all players
-                                    _initializeDefaultTeams(); // Re-initialize teams
-                                  });
-                                  _saveAuctionStateToBackend(); // Save the reset state
-                                },
-                                icon: const Icon(Icons.restart_alt),
-                                label: const Text("Reset All Auction Data"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 16, horizontal: 32),
-                                  textStyle: const TextStyle(fontSize: 20),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else // Auction is ongoing (main or unsold)
-                        Column(
-                          children: [
-                            // Current Player Card
-                            Card(
-                              elevation: 5,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(20),
-                                child: Column(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 60,
-                                      backgroundImage: NetworkImage(
-                                          'https://via.placeholder.com/150'),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      playerName,
-                                      style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Base Price: ₹$basePrice',
-                                      style: const TextStyle(
-                                          fontSize: 16, color: Colors.grey),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Current Bid: ₹$currentBid',
-                                      style: TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green[700]),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Bid Increment Input
-                            TextField(
-                              controller: _bidIncrementController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Increase Bid By',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.add),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  bidIncrement = int.tryParse(value) ?? 10;
-                                });
-                                _saveAuctionStateToBackend(); // Save state after bid increment change
-                              },
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Teams Section
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Teams (Tap to Interact)',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 16,
-                              runSpacing: 16,
-                              children: teams.map((team) {
-                                final isSelected = team['name'] == selectedTeam;
-                                return GestureDetector(
-                                  onTap: () {
-                                    if (_isAdmin && isCurrentUserAdmin) {
-                                      // Only admin can bid when in admin mode
-                                      increaseBid(team['name']);
-                                    } else {
-                                      // Non-admin users or admin in non-admin mode see players
-                                      _showTeamPlayersDialog(team['name']);
-                                    }
-                                  },
-                                  child: Column(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: isSelected ? 36 : 32,
-                                        backgroundColor: isSelected
-                                            ? Colors.amber
-                                            : Colors.transparent,
-                                        child: CircleAvatar(
-                                          radius: 30,
-                                          backgroundImage:
-                                              NetworkImage(team['logo']),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      SizedBox(
-                                        width: 80,
-                                        child: Tooltip(
-                                          message: team['name'],
-                                          child: Text(
-                                            team['name'],
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
-                                            style:
-                                                const TextStyle(fontSize: 13),
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        '₹${team['wallet']}',
-                                        style: const TextStyle(
-                                            fontSize: 12, color: Colors.grey),
-                                      )
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Action Buttons
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: selectedTeam != null &&
-                                            soldTo == null &&
-                                            _isAdmin &&
-                                            isCurrentUserAdmin // Only admin can assign
-                                        ? assignPlayer
-                                        : null,
-                                    icon: const Icon(Icons.gavel),
-                                    label: const Text("Assign Player"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xffc5a3fb),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: soldTo == null &&
-                                            _isAdmin &&
-                                            isCurrentUserAdmin // Only admin can mark unsold
-                                        ? markUnsold
-                                        : null,
-                                    icon: const Icon(Icons.cancel),
-                                    label: const Text("Mark Unsold"),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _auctionPhase = 'setup';
+                                        _currentPlayerIndex = 0;
+                                        playerName = "No Player";
+                                        playerCategory = "N/A";
+                                        currentBid = basePrice;
+                                        selectedTeam = null;
+                                        soldTo = null;
+                                        bidIncrement = 10;
+                                        _bidIncrementController.text = '10';
+                                        allPlayers.clear();
+                                        soldPlayers.clear();
+                                        unsoldPlayers.clear();
+                                        _fetchInitialPlayersFromBackend();
+                                        _initializeDefaultTeams();
+                                      });
+                                      _saveAuctionStateToBackend();
+                                    },
+                                    icon: const Icon(Icons.restart_alt),
+                                    label: const Text("Reset All Auction Data"),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.red[400],
+                                      foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
+                                          vertical: 16, horizontal: 32),
+                                      textStyle: const TextStyle(fontSize: 20),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
                                     ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Column(
+                              children: [
+                                // Main Auction Display (Player Image + Details)
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    bool isWideScreen =
+                                        constraints.maxWidth > 600;
+                                    return Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Player Image Section (Left)
+                                        Expanded(
+                                          flex: isWideScreen ? 2 : 1,
+                                          child: Container(
+                                            height: isWideScreen ? 400 : 250,
+                                            decoration: BoxDecoration(
+                                              color: darkBlue.withOpacity(0.7),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.3),
+                                                  spreadRadius: 2,
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              child: Image.network(
+                                                'https://placehold.co/400x400/CCCCCC/000000?text=PLAYER', // Placeholder for player image
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    Center(
+                                                  child: Icon(Icons.person,
+                                                      size: 100,
+                                                      color: Colors.grey[600]),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(width: isWideScreen ? 20 : 16),
+                                        // Auction Details Section (Right)
+                                        Expanded(
+                                          flex: isWideScreen ? 3 : 1,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              // Tournament Name (repeated from app bar for visual consistency with image)
+                                              Text(
+                                                widget.tournamentName
+                                                    .toUpperCase(),
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              // Player Name
+                                              CustomPaint(
+                                                painter:
+                                                    AngledBackgroundPainter(
+                                                        color: accentOrange,
+                                                        angleFactor: 0.9),
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  padding: const EdgeInsets
+                                                          .symmetric(
+                                                      vertical: 12,
+                                                      horizontal: 20),
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      const Text(
+                                                        'PLAYER NAME',
+                                                        style: TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        playerName
+                                                            .toUpperCase(),
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 22,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              // Player Category & Base Price
+                                              CustomPaint(
+                                                painter:
+                                                    AngledBackgroundPainter(
+                                                        color: lightBlue,
+                                                        angleFactor: 0.9),
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  padding: const EdgeInsets
+                                                          .symmetric(
+                                                      vertical: 12,
+                                                      horizontal: 20),
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      const Text(
+                                                        'PLAYER CATEGORY',
+                                                        style: TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        playerCategory
+                                                            .toUpperCase(),
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 22,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      const Text(
+                                                        'BASE PRICE',
+                                                        style: TextStyle(
+                                                          color: Colors.white70,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        '$basePrice PTS',
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 20,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              // Current Bid
+                                              _buildBidDisplayBox(
+                                                'CURRENT BID',
+                                                currentBid,
+                                                Colors.greenAccent,
+                                                Icons.trending_up,
+                                              ),
+                                              const SizedBox(height: 10),
+                                              // Active Bid By
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 10,
+                                                        horizontal: 15),
+                                                decoration: BoxDecoration(
+                                                  color: bidBoxColor,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                      color: Colors.white12),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.person_pin,
+                                                        color:
+                                                            Colors.yellowAccent,
+                                                        size: 24),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      // Use Expanded to allow text to take available space
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          const Text(
+                                                            'ACTIVE BID BY',
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .white70,
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            selectedTeam ??
+                                                                'N/A', // Display selected team or N/A
+                                                            style:
+                                                                const TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize:
+                                                                  18, // Keep original font size
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                            maxLines:
+                                                                1, // Limit to 1 line
+                                                            overflow: TextOverflow
+                                                                .ellipsis, // Add ellipsis for overflow
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Bid Increment Input
+                                TextField(
+                                  controller: _bidIncrementController,
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(color: Colors.white),
+                                  decoration: InputDecoration(
+                                    labelText: 'Increase Bid By',
+                                    labelStyle:
+                                        const TextStyle(color: Colors.white70),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(color: lightBlue),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide(color: lightBlue),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide:
+                                          const BorderSide(color: accentOrange),
+                                    ),
+                                    prefixIcon: const Icon(Icons.add,
+                                        color: Colors.white70),
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      bidIncrement = int.tryParse(value) ?? 10;
+                                    });
+                                    _saveAuctionStateToBackend();
+                                  },
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Teams Section (Funds Remaining)
+                                const Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'FUNDS REMAINING',
+                                    style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: teams.map((team) {
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 16.0),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            if (_isAdmin &&
+                                                isCurrentUserAdmin) {
+                                              increaseBid(team['name']);
+                                            } else {
+                                              _showTeamPlayersDialog(
+                                                  team['name']);
+                                            }
+                                          },
+                                          child: Column(
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 30,
+                                                backgroundColor: Colors.white12,
+                                                backgroundImage:
+                                                    NetworkImage(team['logo']),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                '${team['wallet']} L', // Changed to L for Lacs as in image
+                                                style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white),
+                                              ),
+                                              SizedBox(
+                                                width: 60,
+                                                child: Text(
+                                                  team['name'],
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.grey),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Action Buttons (Assign, Mark Unsold, Reset Bid)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: selectedTeam != null &&
+                                                soldTo == null &&
+                                                _isAdmin &&
+                                                isCurrentUserAdmin
+                                            ? assignPlayer
+                                            : null,
+                                        icon: const Icon(Icons.gavel),
+                                        label: const Text("Assign Player"),
+                                        style: ButtonStyle(
+                                          backgroundColor: MaterialStateProperty
+                                              .resolveWith<Color?>(
+                                            (Set<MaterialState> states) {
+                                              if (states.contains(
+                                                  MaterialState.disabled)) {
+                                                return accentOrange
+                                                    .withOpacity(0.5);
+                                              }
+                                              return accentOrange;
+                                            },
+                                          ),
+                                          foregroundColor:
+                                              MaterialStateProperty.all<Color>(
+                                                  Colors.white),
+                                          padding: MaterialStateProperty.all<
+                                                  EdgeInsetsGeometry>(
+                                              const EdgeInsets.symmetric(
+                                                  vertical: 14)),
+                                          shape: MaterialStateProperty.all<
+                                                  OutlinedBorder>(
+                                              RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          10))),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: soldTo == null &&
+                                                _isAdmin &&
+                                                isCurrentUserAdmin
+                                            ? markUnsold
+                                            : null,
+                                        icon: const Icon(Icons.cancel),
+                                        label: const Text("Mark Unsold"),
+                                        style: ButtonStyle(
+                                          backgroundColor: MaterialStateProperty
+                                              .resolveWith<Color?>(
+                                            (Set<MaterialState> states) {
+                                              if (states.contains(
+                                                  MaterialState.disabled)) {
+                                                return Colors.red[400]!
+                                                    .withOpacity(0.5);
+                                              }
+                                              return Colors.red[400];
+                                            },
+                                          ),
+                                          foregroundColor:
+                                              MaterialStateProperty.all<Color>(
+                                                  Colors.white),
+                                          padding: MaterialStateProperty.all<
+                                                  EdgeInsetsGeometry>(
+                                              const EdgeInsets.symmetric(
+                                                  vertical: 14)),
+                                          shape: MaterialStateProperty.all<
+                                                  OutlinedBorder>(
+                                              RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          10))),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: soldTo == null &&
+                                          _isAdmin &&
+                                          isCurrentUserAdmin
+                                      ? resetBid
+                                      : null,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text("Reset Bid"),
+                                  style: ButtonStyle(
+                                    backgroundColor: MaterialStateProperty
+                                        .resolveWith<Color?>(
+                                      (Set<MaterialState> states) {
+                                        if (states
+                                            .contains(MaterialState.disabled)) {
+                                          return lightBlue.withOpacity(0.5);
+                                        }
+                                        return lightBlue;
+                                      },
+                                    ),
+                                    foregroundColor:
+                                        MaterialStateProperty.all<Color>(
+                                            Colors.white),
+                                    padding: MaterialStateProperty.all<
+                                            EdgeInsetsGeometry>(
+                                        const EdgeInsets.symmetric(
+                                            vertical: 12, horizontal: 24)),
+                                    shape: MaterialStateProperty.all<
+                                            OutlinedBorder>(
+                                        RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10))),
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
+                                const Text(
+                                  'MPL PLAYER AUCTION 2025',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: soldTo == null &&
-                                      _isAdmin &&
-                                      isCurrentUserAdmin // Only admin can reset bid
-                                  ? resetBid
-                                  : null,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text("Reset Bid"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xfff9c4c4),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 24),
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            // Tab 2: Sold Players List
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: soldPlayers.isEmpty
-                    ? const Center(child: Text('No players sold yet.'))
-                    : ListView.builder(
-                        itemCount: soldPlayers.length,
-                        itemBuilder: (context, index) {
-                          final player = soldPlayers[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                // Tab 2: Sold Players List
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: soldPlayers.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No players sold yet.',
+                              style: TextStyle(color: Colors.white70),
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.person,
-                                      color: Colors.blueGrey),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          player['playerName'],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Sold to: ${player['soldTo']} for ₹${player['price']}',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ),
-
-            // Tab 3: Unsold Players List
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: unsoldPlayers.isEmpty
-                    ? const Center(child: Text('No players marked unsold yet.'))
-                    : ListView.builder(
-                        itemCount: unsoldPlayers.length,
-                        itemBuilder: (context, index) {
-                          final player = unsoldPlayers[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.close,
-                                      color: Colors.redAccent),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          player['playerName'],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Base Price: ₹${player['price']}',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ),
-
-            // Tab 4: All Players List
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: RefreshIndicator(
-                  // Added RefreshIndicator
-                  onRefresh: _refreshAllPlayersFromBackend, // Call to re-fetch
-                  child: allPlayers.isEmpty
-                      ? const Center(
-                          child: Text(
-                              'No players generated yet. Pull down to refresh.'))
-                      : ListView.builder(
-                          itemCount: allPlayers.length,
-                          itemBuilder: (context, index) {
-                            final player = allPlayers[index];
-                            final isFavorite = player['isFavorite'] ?? false;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 6),
-                              elevation: 3,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      player['status'] == 'Upcoming'
-                                          ? Icons.hourglass_empty
-                                          : player['status'].startsWith('Sold')
-                                              ? Icons.check_circle
-                                              : Icons.cancel,
-                                      color: player['status'] == 'Upcoming'
-                                          ? Colors.orange
-                                          : player['status'].startsWith('Sold')
-                                              ? Colors.green
-                                              : Colors.red,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            player['playerName'],
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Base Price: ₹${player['price']}',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                          if (player['status']
-                                              .startsWith('Sold'))
-                                            Text(
-                                              'Status: ${player['status']} for ₹${player['soldPrice']}',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey,
-                                              ),
-                                            )
-                                          else
-                                            Text(
-                                              'Status: ${player['status']}',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    // Favorites button - Only visible to admin
-                                    if (isCurrentUserAdmin)
-                                      IconButton(
-                                        icon: Icon(
-                                          isFavorite
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          color: isFavorite
-                                              ? Colors.red
-                                              : Colors.grey,
-                                        ),
-                                        onPressed: () => toggleFavorite(index),
-                                      ),
-                                  ],
+                          )
+                        : ListView.builder(
+                            itemCount: soldPlayers.length,
+                            itemBuilder: (context, index) {
+                              final player = soldPlayers[index];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                                color: lightBlue
+                                    .withOpacity(0.7), // Card background
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.person,
+                                          color: Colors.white),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              player['playerName'],
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Sold to: ${player['soldTo']} for ${player['price']} PTS', // Changed to PTS
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
                 ),
-              ),
+
+                // Tab 3: Unsold Players List
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: unsoldPlayers.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No players marked unsold yet.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: unsoldPlayers.length,
+                            itemBuilder: (context, index) {
+                              final player = unsoldPlayers[index];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                color: lightBlue
+                                    .withOpacity(0.7), // Card background
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.close,
+                                          color: Colors.redAccent),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              player['playerName'],
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Base Price: ${player['price']} PTS', // Changed to PTS
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+
+                // Tab 4: All Players List
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: RefreshIndicator(
+                      onRefresh: _refreshAllPlayersFromBackend,
+                      color: accentOrange, // Refresh indicator color
+                      child: allPlayers.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No players generated yet. Pull down to refresh.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: allPlayers.length,
+                              itemBuilder: (context, index) {
+                                final player = allPlayers[index];
+                                final isFavorite =
+                                    player['isFavorite'] ?? false;
+                                return Card(
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  color: lightBlue
+                                      .withOpacity(0.7), // Card background
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          player['status'] == 'Upcoming'
+                                              ? Icons.hourglass_empty
+                                              : player['status']
+                                                      .startsWith('Sold')
+                                                  ? Icons.check_circle
+                                                  : Icons.cancel,
+                                          color: player['status'] == 'Upcoming'
+                                              ? Colors.orange
+                                              : player['status']
+                                                      .startsWith('Sold')
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                player['playerName'],
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Category: ${player['playerCategory'] ?? 'N/A'}', // Display category
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Base Price: ${player['price']} PTS', // Changed to PTS
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                              if (player['status']
+                                                  .startsWith('Sold'))
+                                                Text(
+                                                  'Status: ${player['status']} for ${player['soldPrice']} PTS', // Changed to PTS
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.white70,
+                                                  ),
+                                                )
+                                              else
+                                                Text(
+                                                  'Status: ${player['status']}',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.white70,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        // Favorites button - Only visible to admin
+                                        if (isCurrentUserAdmin)
+                                          IconButton(
+                                            icon: Icon(
+                                              isFavorite
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: isFavorite
+                                                  ? Colors.red
+                                                  : Colors.grey,
+                                            ),
+                                            onPressed: () =>
+                                                toggleFavorite(index),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Helper widget to build the bid display boxes
+  Widget _buildBidDisplayBox(
+      String label, int amount, Color iconColor, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A1C63), // Dark blue background for bid boxes
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 24),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '$amount L', // Changed to L for Lacs
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
