@@ -181,16 +181,21 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => AddPlayerPage(
-                                        tournamentId: tournament.id,
-                                        tournamentName: tournament.name,
+                                      builder: (_) => TournamentDetailPage(
                                         tournament: {
                                           'id': tournament.id,
                                           'name': tournament.name,
                                           'sportType': tournament.sportType,
                                           'startDate': tournament.startDate,
-                                          // Add other fields if needed by AddPlayerPage
+                                          // Add other fields from the Tournament object that TournamentDetailPage expects
+                                          // For example, if your Tournament class has 'endDate', 'organizer', 'location', 'description'
+                                          // 'endDate': tournament.endDate,
+                                          // 'organizer': tournament.organizer,
+                                          // 'location': tournament.location,
+                                          // 'description': tournament.description,
                                         },
+                                        matchId:
+                                            0, // Placeholder, adjust as needed
                                       ),
                                     ),
                                   );

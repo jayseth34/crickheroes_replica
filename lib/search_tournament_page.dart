@@ -153,11 +153,11 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
   String getModeLabel() {
     switch (widget.mode) {
       case 'addTeam':
-        return 'Add Teams �';
+        return 'Add Teams';
       case 'addPlayer':
-        return 'Add Players 👤';
+        return 'Add Players';
       case 'auction':
-        return 'Start Auction 🛎️';
+        return 'Start Auction';
       default:
         return 'Search Tournament';
     }
