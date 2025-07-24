@@ -60,13 +60,10 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
   bool _loading = false;
 
-  // Define a consistent color palette
-  static const Color primaryBlue = Color(0xFF1976D2); // A strong blue
-  static const Color accentBlue =
-      Color(0xFF42A5F5); // A lighter blue for accents
-  static const Color lightBackground = Colors.white;
-  static const Color textOnPrimary = Colors.white;
-  static const Color textOnLight = Colors.black87;
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
   Map<String, dynamic>? tournamentData;
 
@@ -293,19 +290,21 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
-          backgroundColor: primaryBlue,
-          foregroundColor: textOnPrimary,
+          backgroundColor: lightBlue, // Use lightBlue
+          foregroundColor: Colors.white, // Text on primary
         ),
-        body: Center(child: CircularProgressIndicator(color: primaryBlue)),
+        body: Center(
+            child: CircularProgressIndicator(
+                color: accentOrange)), // Accent orange
       );
     }
 
     return Scaffold(
-      backgroundColor: lightBackground, // Set scaffold background to white
+      backgroundColor: primaryBlue, // Set scaffold background to primaryBlue
       appBar: AppBar(
         title: Text(widget.isUpdate ? 'Update Tournament' : 'Add Tournament'),
-        backgroundColor: primaryBlue,
-        foregroundColor: textOnPrimary,
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Text on primary
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -322,10 +321,11 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: primaryBlue, width: 3), // Blue border
+                            color: lightBlue, width: 3), // lightBlue border
                         boxShadow: [
                           BoxShadow(
-                            color: primaryBlue.withOpacity(0.3),
+                            color: primaryBlue.withOpacity(
+                                0.3), // primaryBlue tint for shadow
                             spreadRadius: 2,
                             blurRadius: 8,
                             offset: const Offset(0, 4),
@@ -335,18 +335,19 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       child: CircleAvatar(
                         radius: 65, // Slightly larger
                         backgroundColor:
-                            Colors.blue.shade50, // Light blue background
+                            lightBlue.withOpacity(0.5), // Light blue background
                         backgroundImage:
                             avatarImageProvider, // Use the determined image provider
                         child: (avatarImageProvider == null)
                             ? const Icon(Icons.add_a_photo,
-                                size: 45, color: accentBlue) // Blue icon
+                                size: 45,
+                                color: accentOrange) // Accent orange icon
                             : null,
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text('Tap to add image',
-                        style: TextStyle(color: primaryBlue)) // Blue text
+                        style: TextStyle(color: Colors.white)) // White text
                   ],
                 ),
               ),
@@ -356,7 +357,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                   child: Text(
                     'Selected: $_imagePickedFileName',
                     style: TextStyle(
-                        color: primaryBlue,
+                        color: Colors.white70, // White70 text
                         fontSize: 12,
                         fontStyle: FontStyle.italic),
                   ),
@@ -367,7 +368,9 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
                 shadowColor:
-                    primaryBlue.withOpacity(0.2), // Blue tint for shadow
+                    primaryBlue.withOpacity(0.2), // primaryBlue tint for shadow
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -385,11 +388,11 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: textOnLight), // Consistent text color
+                                color: Colors.white), // Consistent text color
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline,
-                                color: primaryBlue), // Blue icon
+                                color: accentOrange), // Accent orange icon
                             onPressed: () {
                               setState(() {
                                 _adminControllers.add(TextEditingController());
@@ -404,20 +407,31 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                           child: TextFormField(
                             controller: controller,
                             keyboardType: TextInputType.phone,
+                            style: const TextStyle(
+                                color: Colors.white), // Input text color
                             decoration: InputDecoration(
                               hintText: 'Enter phone number',
+                              hintStyle: const TextStyle(
+                                  color: Colors.white70), // Hint text color
                               border: OutlineInputBorder(
                                 borderRadius:
                                     BorderRadius.circular(12), // More rounded
                                 borderSide: BorderSide(
-                                    color: primaryBlue.withOpacity(0.5)),
+                                    color: lightBlue.withOpacity(0.5)),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
-                                    color: primaryBlue, width: 2),
+                                    color: accentOrange,
+                                    width: 2), // Accent orange
                               ),
-                              labelStyle: const TextStyle(color: primaryBlue),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: lightBlue), // lightBlue
+                              ),
+                              labelStyle: const TextStyle(
+                                  color: Colors.white70), // Label text color
                               contentPadding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                   horizontal: 16), // Better padding
@@ -428,26 +442,37 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       ),
                       DropdownButtonFormField<int>(
                         value: selectedTeamCount,
+                        style: const TextStyle(
+                            color: Colors.white), // Dropdown text color
+                        dropdownColor: lightBlue, // Dropdown background color
                         decoration: InputDecoration(
                           labelText: 'Number of Teams',
+                          labelStyle: const TextStyle(
+                              color: Colors.white70), // Label text color
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                BorderSide(color: primaryBlue.withOpacity(0.5)),
+                                BorderSide(color: lightBlue.withOpacity(0.5)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: primaryBlue, width: 2),
+                            borderSide: const BorderSide(
+                                color: accentOrange, width: 2), // Accent orange
                           ),
-                          labelStyle: const TextStyle(color: primaryBlue),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: lightBlue), // lightBlue
+                          ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 16),
                         ),
                         items: [2, 4, 6, 8].map((count) {
                           return DropdownMenuItem<int>(
                             value: count,
-                            child: Text('$count Teams'),
+                            child: Text('$count Teams',
+                                style: const TextStyle(
+                                    color: Colors.white)), // Item text color
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -467,9 +492,9 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                               : '✅ No payment needed for 2 teams.',
                           style: TextStyle(
                               color: paymentAmount > 0
-                                  ? Colors.red.shade700 // Keep red for warning
+                                  ? Colors.red.shade400 // Keep red for warning
                                   : Colors
-                                      .green.shade700, // Keep green for success
+                                      .green.shade400, // Keep green for success
                               fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -491,26 +516,38 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: selectedSport,
+                        style: const TextStyle(
+                            color: Colors.white), // Dropdown text color
+                        dropdownColor: lightBlue, // Dropdown background color
                         decoration: InputDecoration(
                           labelText: 'Type of Sport',
+                          labelStyle: const TextStyle(
+                              color: Colors.white70), // Label text color
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                BorderSide(color: primaryBlue.withOpacity(0.5)),
+                                BorderSide(color: lightBlue.withOpacity(0.5)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: primaryBlue, width: 2),
+                            borderSide: const BorderSide(
+                                color: accentOrange, width: 2), // Accent orange
                           ),
-                          labelStyle: const TextStyle(color: primaryBlue),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: lightBlue), // lightBlue
+                          ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 16),
                         ),
                         items: sports
                             .map((sport) => DropdownMenuItem(
                                   value: sport,
-                                  child: Text(sport),
+                                  child: Text(sport,
+                                      style: const TextStyle(
+                                          color:
+                                              Colors.white)), // Item text color
                                 ))
                             .toList(),
                         onChanged: (value) {
@@ -546,21 +583,33 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                             showDialog(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                title: const Text('Payment Required'),
+                                backgroundColor:
+                                    primaryBlue, // Dialog background
+                                title: const Text('Payment Required',
+                                    style: TextStyle(color: Colors.white)),
                                 content: Text(
-                                    'You need to pay ₹$paymentAmount to proceed.'),
+                                    'You need to pay ₹$paymentAmount to proceed.',
+                                    style: TextStyle(color: Colors.white70)),
                                 actions: [
                                   TextButton(
                                     onPressed: () {
                                       Navigator.of(ctx).pop();
                                     },
-                                    child: const Text('Cancel'),
+                                    child: const Text('Cancel',
+                                        style:
+                                            TextStyle(color: Colors.white70)),
                                   ),
                                   ElevatedButton(
                                     onPressed: () {
                                       Navigator.of(ctx).pop();
                                       _processPayment();
                                     },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          accentOrange, // Pay Now button background
+                                      foregroundColor: Colors
+                                          .white, // Pay Now button text color
+                                    ),
                                     child: const Text('Pay Now'),
                                   ),
                                 ],
@@ -571,16 +620,16 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                           }
                         }
                       },
-                      icon: const Icon(Icons.check, color: textOnPrimary),
+                      icon: const Icon(Icons.check, color: Colors.white),
                       label: Text(
                         widget.isUpdate ? 'Update Tournament' : 'Submit',
                         style:
-                            const TextStyle(fontSize: 16, color: textOnPrimary),
+                            const TextStyle(fontSize: 16, color: Colors.white),
                       ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 14), // Reduced padding
-                        backgroundColor: primaryBlue,
+                        backgroundColor: accentOrange, // Accent orange
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -611,15 +660,14 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.all(
                             14), // Square shape for icon button
-                        backgroundColor:
-                            accentBlue, // A different shade of blue for share
+                        backgroundColor: lightBlue, // lightBlue for share
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 4,
                       ),
                       child: const Icon(Icons.share,
-                          color: textOnPrimary, size: 24), // Only icon
+                          color: Colors.white, size: 24), // Only icon
                     ),
                   ),
                 ],
@@ -635,17 +683,23 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   Widget _buildTextField(String label, {TextEditingController? controller}) {
     return TextFormField(
       controller: controller,
+      style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70), // Label text color
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12), // Slightly more rounded
-          borderSide: BorderSide(color: primaryBlue.withOpacity(0.5)),
+          borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryBlue, width: 2),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
         ),
-        labelStyle: const TextStyle(color: primaryBlue),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightBlue), // lightBlue
+        ),
         contentPadding: const EdgeInsets.symmetric(
             vertical: 14, horizontal: 16), // Better padding
       ),
@@ -658,17 +712,23 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     return TextFormField(
       keyboardType: TextInputType.number,
       controller: controller,
+      style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70), // Label text color
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryBlue.withOpacity(0.5)),
+          borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryBlue, width: 2),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
         ),
-        labelStyle: const TextStyle(color: primaryBlue),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightBlue), // lightBlue
+        ),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
@@ -726,7 +786,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        // Removed Navigator.pop(context) here
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

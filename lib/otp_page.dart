@@ -15,6 +15,11 @@ class _OtpPageState extends State<OtpPage> {
 
   bool isValid = false;
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +55,7 @@ class _OtpPageState extends State<OtpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //appBar: AppBar(title: const Text('Verify OTP')),
+      backgroundColor: primaryBlue, // Set scaffold background
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -64,19 +69,25 @@ class _OtpPageState extends State<OtpPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 4,
+                color: lightBlue.withOpacity(
+                    0.7), // Set card background to lightBlue with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.sms, size: 60, color: Colors.blue),
+                      Icon(Icons.sms,
+                          size: 60,
+                          color:
+                              accentOrange), // Set icon color to accentOrange
                       const SizedBox(height: 16),
                       Text(
                         "OTP sent to ${widget.phone}",
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                          color: Colors.white, // Set text color to white
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -85,13 +96,29 @@ class _OtpPageState extends State<OtpPage> {
                         controller: otpController,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
+                        style: const TextStyle(
+                            color: Colors.white), // Input text color
                         decoration: InputDecoration(
                           labelText: "Enter OTP",
+                          labelStyle: const TextStyle(
+                              color: Colors.white70), // Label text color
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          prefixIcon: const Icon(Icons.lock),
+                          prefixIcon: const Icon(Icons.lock,
+                              color: Colors.white70), // Icon color
                           counterText: '',
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: lightBlue), // Enabled border color
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: accentOrange,
+                                width: 2), // Focused border color
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -107,9 +134,14 @@ class _OtpPageState extends State<OtpPage> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: isValid ? verifyOtp : null,
-                          icon: const Icon(Icons.check),
-                          label: const Text("Verify OTP"),
+                          icon: const Icon(Icons.check,
+                              color: Colors.white), // Icon color
+                          label: const Text("Verify OTP",
+                              style:
+                                  TextStyle(color: Colors.white)), // Text color
                           style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                accentOrange, // Set button background to accentOrange
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),

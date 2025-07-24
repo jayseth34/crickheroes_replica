@@ -54,6 +54,11 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
   bool isLoading = true;
   bool isError = false;
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -166,135 +171,146 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: Text(getModeLabel()),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.deepPurple, Colors.indigo],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
+        title:
+            Text(getModeLabel(), style: const TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
+        elevation: 1,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Color(0xFFF5F7FA)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : isError
-                  ? const Center(
-                      child: Text(
-                        'Error loading tournaments. Please try again later.',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        TextField(
-                          controller: searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search tournaments...',
-                            prefixIcon: const Icon(Icons.search),
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                    color: accentOrange)) // Loading indicator color
+            : isError
+                ? const Center(
+                    child: Text(
+                      'Error loading tournaments. Please try again later.',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      TextField(
+                        controller: searchController,
+                        style: const TextStyle(
+                            color: Colors.white), // Text input color
+                        decoration: InputDecoration(
+                          hintText: 'Search tournaments...',
+                          hintStyle: TextStyle(
+                              color: Colors.white70), // Hint text color
+                          prefixIcon: const Icon(Icons.search,
+                              color: Colors.white70), // Icon color
+                          filled: true,
+                          fillColor: lightBlue
+                              .withOpacity(0.5), // Text field background
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none, // No border line
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: accentOrange,
+                                width: 2), // Orange border on focus
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: Colors
+                                    .white30), // Light border when enabled
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Expanded(
-                          child: filteredTournaments.isEmpty
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(Icons.error_outline,
-                                        size: 60, color: Colors.grey),
-                                    SizedBox(height: 10),
-                                    Text(
-                                      'No tournaments found.',
-                                      style: TextStyle(
-                                          fontSize: 16, color: Colors.grey),
-                                    ),
-                                  ],
-                                )
-                              : ListView.builder(
-                                  itemCount: filteredTournaments.length,
-                                  itemBuilder: (context, index) {
-                                    final tournament =
-                                        filteredTournaments[index];
-                                    final input = searchController.text;
-                                    final matchIndex = tournament.name
-                                        .toLowerCase()
-                                        .indexOf(input.toLowerCase());
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: filteredTournaments.isEmpty
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.error_outline,
+                                      size: 60,
+                                      color: Colors.white70), // Icon color
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'No tournaments found.',
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white70), // Text color
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                itemCount: filteredTournaments.length,
+                                itemBuilder: (context, index) {
+                                  final tournament = filteredTournaments[index];
+                                  final input = searchController.text;
+                                  final matchIndex = tournament.name
+                                      .toLowerCase()
+                                      .indexOf(input.toLowerCase());
 
-                                    final beforeMatch = matchIndex >= 0
-                                        ? tournament.name
-                                            .substring(0, matchIndex)
-                                        : tournament.name;
-                                    final matchText = matchIndex >= 0
-                                        ? tournament.name.substring(matchIndex,
-                                            matchIndex + input.length)
-                                        : '';
-                                    final afterMatch = matchIndex >= 0
-                                        ? tournament.name.substring(
-                                            matchIndex + input.length)
-                                        : '';
+                                  final beforeMatch = matchIndex >= 0
+                                      ? tournament.name.substring(0, matchIndex)
+                                      : tournament.name;
+                                  final matchText = matchIndex >= 0
+                                      ? tournament.name.substring(
+                                          matchIndex, matchIndex + input.length)
+                                      : '';
+                                  final afterMatch = matchIndex >= 0
+                                      ? tournament.name
+                                          .substring(matchIndex + input.length)
+                                      : '';
 
-                                    return Card(
-                                      color: Colors.white,
-                                      elevation: 4,
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 8),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10)),
-                                      child: ListTile(
-                                        leading: const CircleAvatar(
-                                          backgroundColor: Colors.indigo,
-                                          child: Icon(Icons.emoji_events,
-                                              color: Colors.white),
-                                        ),
-                                        title: RichText(
-                                          text: TextSpan(
-                                            style: const TextStyle(
-                                                fontSize: 16,
-                                                color: Colors.black),
-                                            children: [
-                                              TextSpan(text: beforeMatch),
-                                              TextSpan(
-                                                text: matchText,
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.indigo),
-                                              ),
-                                              TextSpan(text: afterMatch),
-                                            ],
-                                          ),
-                                        ),
-                                        trailing: const Icon(
-                                            Icons.arrow_forward_ios,
-                                            color: Colors.grey),
-                                        onTap: () =>
-                                            _navigateToNextPage(tournament),
+                                  return Card(
+                                    color: lightBlue.withOpacity(
+                                        0.7), // Card background with opacity
+                                    elevation: 4,
+                                    margin:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    child: ListTile(
+                                      leading: const CircleAvatar(
+                                        backgroundColor:
+                                            accentOrange, // Accent orange
+                                        child: Icon(Icons.emoji_events,
+                                            color: Colors.white),
                                       ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-        ),
+                                      title: RichText(
+                                        text: TextSpan(
+                                          style: const TextStyle(
+                                              fontSize: 16,
+                                              color:
+                                                  Colors.white), // Text color
+                                          children: [
+                                            TextSpan(text: beforeMatch),
+                                            TextSpan(
+                                              text: matchText,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color:
+                                                      accentOrange), // Accent orange
+                                            ),
+                                            TextSpan(text: afterMatch),
+                                          ],
+                                        ),
+                                      ),
+                                      trailing: const Icon(
+                                          Icons.arrow_forward_ios,
+                                          color: accentOrange), // Accent orange
+                                      onTap: () =>
+                                          _navigateToNextPage(tournament),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
       ),
     );
   }

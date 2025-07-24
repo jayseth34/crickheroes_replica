@@ -43,6 +43,11 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
   final TextEditingController _team2PlayerXController = TextEditingController();
   final TextEditingController _team2PlayerYController = TextEditingController();
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void dispose() {
     // Dispose of all text editing controllers to free up resources
@@ -101,10 +106,14 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title:
-            const Text('New Match Setup'), // AppBar title for the setup screen.
-        elevation: 0, // Removes the shadow under the AppBar for a cleaner look.
+        title: const Text('New Match Setup',
+            style: TextStyle(
+                color: Colors.white)), // AppBar title for the setup screen.
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
+        elevation: 1, // Removes the shadow under the AppBar for a cleaner look.
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0), // Padding around the main content.
@@ -120,6 +129,8 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                         15)), // Rounded corners for the card.
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding:
                       const EdgeInsets.all(20.0), // Inner padding for the card.
@@ -130,7 +141,7 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                         style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey),
+                            color: Colors.white), // Text color
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20), // Vertical space.
@@ -165,6 +176,8 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                 elevation: 4,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
@@ -176,7 +189,7 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                         style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey),
+                            color: Colors.white), // Text color
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
@@ -194,14 +207,15 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
               ElevatedButton.icon(
                 onPressed:
                     _startMatch, // Calls the _startMatch function on press.
-                icon: const Icon(Icons.play_arrow, size: 28), // Play icon.
+                icon: const Icon(Icons.play_arrow,
+                    size: 28, color: Colors.white), // Play icon.
                 label: const Text(
                   'Start Match',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white, // Text/icon color.
-                  backgroundColor: Colors.green.shade600, // Background color.
+                  backgroundColor: accentOrange, // Background color.
                   shape: RoundedRectangleBorder(
                     borderRadius:
                         BorderRadius.circular(30), // Pill-shaped button.
@@ -245,14 +259,15 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.blue.shade600
-                  : Colors.blue.shade100, // Color changes based on selection.
+                  ? accentOrange.withOpacity(0.8)
+                  : primaryBlue
+                      .withOpacity(0.5), // Color changes based on selection.
               borderRadius: BorderRadius.circular(15),
               boxShadow: [
                 // Shadow effect.
                 BoxShadow(
                   color: isSelected
-                      ? Colors.blue.shade800.withOpacity(0.4)
+                      ? accentOrange.withOpacity(0.4)
                       : Colors.black.withOpacity(0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
@@ -260,7 +275,7 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
               ],
               border: Border.all(
                 // Border color and width change based on selection.
-                color: isSelected ? Colors.blue.shade800 : Colors.blue.shade200,
+                color: isSelected ? accentOrange : lightBlue,
                 width: isSelected ? 3 : 1,
               ),
             ),
@@ -271,7 +286,7 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                   size: 40,
                   color: isSelected
                       ? Colors.white
-                      : Colors.blue.shade700, // Icon color changes.
+                      : Colors.white70, // Icon color changes.
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -280,7 +295,7 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
                   style: TextStyle(
                     color: isSelected
                         ? Colors.white
-                        : Colors.blue.shade900, // Text color changes.
+                        : Colors.white, // Text color changes.
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -313,7 +328,10 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
       children: <Widget>[
         const Text(
           'Team 1 Player Names:',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white), // Text color
           textAlign: TextAlign.left,
         ),
         const SizedBox(height: 10),
@@ -325,7 +343,10 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
         const SizedBox(height: 30),
         const Text(
           'Team 2 Player Names:',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white), // Text color
           textAlign: TextAlign.left,
         ),
         const SizedBox(height: 10),
@@ -343,11 +364,14 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
       String labelText, String hintText, IconData icon) {
     return TextField(
       controller: controller, // Assign the controller to the text field.
+      style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: labelText, // Label above the input.
         hintText: hintText, // Placeholder text.
+        labelStyle: const TextStyle(color: Colors.white70), // Label text color
+        hintStyle: const TextStyle(color: Colors.white70), // Hint text color
         prefixIcon:
-            Icon(icon, color: Colors.blueGrey), // Icon inside the input field.
+            Icon(icon, color: Colors.white70), // Icon inside the input field.
         border: OutlineInputBorder(
           // Outline border.
           borderRadius:
@@ -356,11 +380,19 @@ class _NewMatchSetupScreenState extends State<NewMatchSetupScreen> {
               .none, // No visible border line, using filled background instead.
         ),
         filled: true, // Enable background fill.
-        fillColor: Colors.blue.shade50, // Light blue background for the input.
+        fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
         contentPadding: const EdgeInsets.symmetric(
             vertical: 15, horizontal: 20), // Padding inside the input.
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: lightBlue), // Light blue
+        ),
       ),
-      style: const TextStyle(fontSize: 16), // Text style for input.
       textCapitalization: TextCapitalization
           .words, // Capitalizes the first letter of each word.
     );

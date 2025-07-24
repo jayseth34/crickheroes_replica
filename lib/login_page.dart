@@ -16,6 +16,11 @@ class _LoginPageState extends State<LoginPage> {
 
   bool isValid = false;
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //appBar: AppBar(title: const Text("Login")),
+      backgroundColor: primaryBlue, // Set scaffold background
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -73,30 +78,54 @@ class _LoginPageState extends State<LoginPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                color: lightBlue.withOpacity(
+                    0.7), // Set card background to lightBlue with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.phone_android,
-                          size: 60, color: Colors.green),
+                      Icon(Icons.phone_android,
+                          size: 60,
+                          color:
+                              accentOrange), // Set icon color to accentOrange
                       const SizedBox(height: 16),
                       const Text(
                         "Enter your mobile number",
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white), // Set text color to white
                       ),
                       const SizedBox(height: 20),
                       TextFormField(
                         controller: phoneController,
                         keyboardType: TextInputType.number,
                         maxLength: 10,
+                        style: const TextStyle(
+                            color: Colors.white), // Input text color
                         decoration: InputDecoration(
                           labelText: "Mobile Number",
+                          labelStyle: const TextStyle(
+                              color: Colors.white70), // Label text color
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.phone),
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide:
+                                  BorderSide(color: lightBlue)), // Border color
+                          prefixIcon: const Icon(Icons.phone,
+                              color: Colors.white70), // Icon color
                           counterText: '',
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: lightBlue), // Enabled border color
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: accentOrange,
+                                width: 2), // Focused border color
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -112,9 +141,14 @@ class _LoginPageState extends State<LoginPage> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: isValid ? sendOtp : null,
-                          icon: const Icon(Icons.send),
-                          label: const Text("Send OTP"),
+                          icon: const Icon(Icons.send,
+                              color: Colors.white), // Icon color
+                          label: const Text("Send OTP",
+                              style:
+                                  TextStyle(color: Colors.white)), // Text color
                           style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                accentOrange, // Set button background to accentOrange
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),

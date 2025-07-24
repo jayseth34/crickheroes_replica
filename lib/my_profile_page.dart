@@ -64,6 +64,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
     'Tennis'
   ];
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -339,11 +344,22 @@ class _MyProfilePageState extends State<MyProfilePage> {
               controller: controller,
               keyboardType: keyboardType,
               textAlign: textAlign,
-              style: textStyle,
+              style: const TextStyle(color: Colors.white), // Input text color
               decoration: InputDecoration(
                 labelText: label,
+                labelStyle:
+                    const TextStyle(color: Colors.white70), // Label text color
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                      color: accentOrange, width: 2), // Accent orange
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: lightBlue), // Light blue
+                ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
@@ -357,13 +373,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white70), // Text color
                 ),
                 Text(
                   controller.text.isEmpty ? 'N/A' : controller.text,
                   style: textStyle ??
                       const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w500),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white), // Text color
                 ),
               ],
             ),
@@ -383,15 +402,33 @@ class _MyProfilePageState extends State<MyProfilePage> {
       child: _isEditing
           ? DropdownButtonFormField<String>(
               value: value,
+              style:
+                  const TextStyle(color: Colors.white), // Dropdown text color
+              dropdownColor: lightBlue, // Dropdown background color
               decoration: InputDecoration(
                 labelText: label,
+                labelStyle:
+                    const TextStyle(color: Colors.white70), // Label text color
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(
+                      color: accentOrange, width: 2), // Accent orange
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: lightBlue), // Light blue
+                ),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               items: options
-                  .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+                  .map((opt) => DropdownMenuItem(
+                      value: opt,
+                      child: Text(opt,
+                          style: const TextStyle(
+                              color: Colors.white)))) // Item text color
                   .toList(),
               onChanged: onChanged,
               validator: isRequired
@@ -404,12 +441,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white70), // Text color
                 ),
                 Text(
                   value ?? 'N/A',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w500),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white), // Text color
                 ),
               ],
             ),
@@ -419,11 +459,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Widget _buildTournamentList(List<dynamic> tournaments) {
     if (tournaments.isEmpty) {
       return const Text("No tournaments played yet.",
-          style: TextStyle(color: Colors.grey));
+          style: TextStyle(color: Colors.white70)); // Text color
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: lightBlue.withOpacity(0.5), // Light blue with opacity
         borderRadius: BorderRadius.circular(10),
       ),
       padding: const EdgeInsets.all(12),
@@ -434,13 +474,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   t['name'],
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white), // Text color
                 ),
                 subtitle: Text(
                   t['date'],
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.white70), // Text color
                 ),
-                leading: const Icon(Icons.emoji_events, color: Colors.orange),
+                leading: const Icon(Icons.emoji_events,
+                    color: accentOrange), // Accent orange icon
               ),
             )
             .toList(),
@@ -452,25 +495,32 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
+        backgroundColor: primaryBlue, // Set scaffold background
         appBar: AppBar(
-          title: const Text('My Profile'),
+          title:
+              const Text('My Profile', style: TextStyle(color: Colors.white)),
           centerTitle: true,
-          backgroundColor: Colors.blue.shade700,
+          backgroundColor: lightBlue, // Set app bar to lightBlue
+          foregroundColor: Colors.white, // Text on primary
         ),
         body: const Center(
-          child: CircularProgressIndicator(), // Show loading indicator
+          child:
+              CircularProgressIndicator(color: accentOrange), // Accent orange
         ),
       );
     }
 
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: const Text('My Profile', style: TextStyle(color: Colors.white)),
         centerTitle: true,
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Text on primary
         actions: [
           IconButton(
-            icon: Icon(_isEditing ? Icons.save : Icons.edit),
+            icon: Icon(_isEditing ? Icons.save : Icons.edit,
+                color: Colors.white), // White icon
             onPressed: () {
               if (_isEditing) {
                 _saveProfile(); // Call async save profile
@@ -495,14 +545,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 onTap: _isEditing ? _pickImage : null,
                 child: CircleAvatar(
                   radius: 65,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor:
+                      lightBlue.withOpacity(0.5), // Light blue with opacity
                   backgroundImage: _pickedImageBase64 != null
                       ? MemoryImage(base64Decode(_pickedImageBase64!))
                       : const AssetImage('assets/default_profile.png')
                           as ImageProvider,
                   child: _pickedImageBase64 == null && _isEditing
-                      ? const Icon(Icons.camera_alt,
-                          size: 40, color: Colors.black45)
+                      ? Icon(Icons.camera_alt,
+                          size: 40, color: accentOrange) // Accent orange icon
                       : null,
                 ),
               ),
@@ -512,8 +563,10 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 controller: _nameController,
                 label: 'Name',
                 textAlign: TextAlign.center,
-                textStyle:
-                    const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                textStyle: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white), // Text color
                 isRequired: true,
               ),
               const SizedBox(height: 8),
@@ -522,7 +575,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 controller: _bioController,
                 label: 'Bio',
                 textAlign: TextAlign.center,
-                textStyle: const TextStyle(fontSize: 16, color: Colors.grey),
+                textStyle: const TextStyle(
+                    fontSize: 16, color: Colors.white70), // Text color
               ),
               const SizedBox(height: 8),
 
@@ -531,6 +585,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -541,14 +597,14 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         controller: _locationController,
                         label: 'Location',
                         textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.black87),
+                            fontSize: 16, color: Colors.white), // Text color
                       ),
                       _buildEditableTextField(
                         controller: _ageController,
                         label: 'Age',
                         keyboardType: TextInputType.number,
                         textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.black87),
+                            fontSize: 16, color: Colors.white), // Text color
                       ),
                       _buildEditableDropdown(
                         label: 'Gender',
@@ -564,7 +620,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         controller: _playingStyleController,
                         label: 'Playing Style',
                         textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.black87),
+                            fontSize: 16, color: Colors.white), // Text color
                       ),
                     ],
                   ),
@@ -576,6 +632,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -587,14 +645,14 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         label: 'Email',
                         keyboardType: TextInputType.emailAddress,
                         textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.black87),
+                            fontSize: 16, color: Colors.white), // Text color
                       ),
                       _buildEditableTextField(
                         controller: _phoneController,
                         label: 'Phone',
                         keyboardType: TextInputType.phone,
                         textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.black87),
+                            fontSize: 16, color: Colors.white), // Text color
                       ),
                     ],
                   ),
@@ -623,6 +681,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -634,12 +694,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         runSpacing: 4.0,
                         children: _userProfile['sports'].map<Widget>((sport) {
                           return Chip(
-                            label: Text(sport),
-                            backgroundColor: Colors.blue.shade100,
+                            label: Text(sport,
+                                style: const TextStyle(
+                                    color: primaryBlue)), // Text color
+                            backgroundColor: accentOrange
+                                .withOpacity(0.7), // Accent orange with opacity
                             labelStyle:
                                 const TextStyle(fontWeight: FontWeight.w600),
                             deleteIcon: _isEditing
-                                ? const Icon(Icons.cancel, size: 18)
+                                ? const Icon(Icons.cancel,
+                                    size: 18, color: Colors.white) // White icon
                                 : null,
                             onDeleted:
                                 _isEditing ? () => _removeSport(sport) : null,
@@ -650,13 +714,30 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         const SizedBox(height: 10),
                         TextField(
                           controller: _newSportController,
+                          style: const TextStyle(
+                              color: Colors.white), // Input text color
                           decoration: InputDecoration(
                             hintText: 'Add new sport',
+                            hintStyle: const TextStyle(
+                                color: Colors.white70), // Hint text color
                             suffixIcon: IconButton(
-                              icon: const Icon(Icons.add),
+                              icon: const Icon(Icons.add,
+                                  color: accentOrange), // Accent orange icon
                               onPressed: _addSport,
                             ),
-                            border: const OutlineInputBorder(),
+                            border: const OutlineInputBorder(
+                              borderSide:
+                                  BorderSide(color: lightBlue), // Light blue
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                  color: accentOrange,
+                                  width: 2), // Accent orange
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide:
+                                  BorderSide(color: lightBlue), // Light blue
+                            ),
                           ),
                           onSubmitted: (_) => _addSport(),
                         ),
@@ -681,6 +762,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -690,17 +773,19 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       if (_isEditing) ...[
                         if (_userProfile['achievements'].isEmpty)
                           const Text("No achievements yet. Add some!",
-                              style: TextStyle(color: Colors.grey)),
+                              style: TextStyle(
+                                  color: Colors.white70)), // Text color
                         ..._userProfile['achievements']
                             .map<Widget>((achievement) {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading:
-                                const Icon(Icons.star, color: Colors.amber),
+                            leading: const Icon(Icons.star,
+                                color: accentOrange), // Accent orange icon
                             title: Text(
                               achievement,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white), // Text color
                             ),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
@@ -711,31 +796,51 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         const SizedBox(height: 10),
                         TextField(
                           controller: _newAchievementController,
+                          style: const TextStyle(
+                              color: Colors.white), // Input text color
                           decoration: InputDecoration(
                             hintText: 'Add new achievement',
+                            hintStyle: const TextStyle(
+                                color: Colors.white70), // Hint text color
                             suffixIcon: IconButton(
-                              icon: const Icon(Icons.add),
+                              icon: const Icon(Icons.add,
+                                  color: accentOrange), // Accent orange icon
                               onPressed: _addAchievement,
                             ),
-                            border: const OutlineInputBorder(),
+                            border: const OutlineInputBorder(
+                              borderSide:
+                                  BorderSide(color: lightBlue), // Light blue
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: const BorderSide(
+                                  color: accentOrange,
+                                  width: 2), // Accent orange
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide:
+                                  BorderSide(color: lightBlue), // Light blue
+                            ),
                           ),
                           onSubmitted: (_) => _addAchievement(),
                         ),
                       ] else ...[
                         _userProfile['achievements'].isEmpty
                             ? const Text("No achievements yet.",
-                                style: TextStyle(color: Colors.grey))
+                                style: TextStyle(
+                                    color: Colors.white70)) // Text color
                             : Column(
                                 children: _userProfile['achievements']
                                     .map<Widget>((achievement) {
                                   return ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     leading: const Icon(Icons.star,
-                                        color: Colors.amber),
+                                        color:
+                                            accentOrange), // Accent orange icon
                                     title: Text(
                                       achievement,
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w600),
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white), // Text color
                                     ),
                                   );
                                 }).toList(),

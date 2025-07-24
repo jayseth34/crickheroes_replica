@@ -714,6 +714,7 @@ class _AuctionPageState extends State<AuctionPage> {
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: lightBlue, // App bar background
+          foregroundColor: Colors.white,
           title: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

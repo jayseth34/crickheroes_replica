@@ -18,8 +18,8 @@ class MyApp extends StatelessWidget {
       title: 'Cricket Scorer',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors
-            .lightBlue, // Primary color for the app bar and general theme (softer blue)
+        // Using the primaryBlue for the overall theme, but specific widgets will override
+        primaryColor: const Color(0xFF1A0F49),
         visualDensity: VisualDensity.adaptivePlatformDensity,
         fontFamily: 'Inter', // Assuming 'Inter' font is available or a fallback
       ),
@@ -102,6 +102,11 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   int _activeBatsman1Index = 0; // The striker
   int _activeBatsman2Index = 1; // The non-striker
   int _activeBowlerIndex = 0; // Index in the *current* bowling team's list
+
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
   @override
   void initState() {
@@ -1968,7 +1973,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         return AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          backgroundColor: Colors.lightBlue.shade700, // Adjusted for blue theme
+          backgroundColor: lightBlue, // Adjusted for blue theme
           title: const Text('Innings Break!',
               style:
                   TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -2138,19 +2143,18 @@ class _MatchDetailPageState extends State<MatchDetailPage>
     final match = widget.match;
 
     return Scaffold(
-      backgroundColor: Colors.lightBlue.shade50, // Very light blue background
+      backgroundColor: primaryBlue, // Very light blue background
       appBar: AppBar(
         title:
             const Text('Match Centre', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.lightBlue.shade800, // Darker blue for app bar
+        backgroundColor: lightBlue, // Darker blue for app bar
         iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(
           controller: _mainTabController,
           isScrollable: true,
           labelColor: Colors.white, // White for selected label
-          unselectedLabelColor:
-              Colors.lightBlue.shade200, // Lighter blue for unselected
-          indicatorColor: Colors.white, // Solid white for indicator
+          unselectedLabelColor: Colors.white70, // Lighter blue for unselected
+          indicatorColor: accentOrange, // Solid white for indicator
           tabs: const [
             Tab(text: 'Scoring'),
             Tab(text: 'Scorecard'),
@@ -2298,8 +2302,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
-          color:
-              Colors.lightBlue.shade900, // Dark blue background for match info
+          color: lightBlue, // Dark blue background for match info
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -2314,7 +2317,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                 Text(
                   winningMessage,
                   style: const TextStyle(
-                      color: Colors.amberAccent,
+                      color: accentOrange,
                       fontSize: 20,
                       fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
@@ -2361,13 +2364,13 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     Text(
                       'Target: $_targetScore | Needs ${_targetScore - _currentRuns} runs from ${((20 * 6) - _totalLegalBallsBowledInInnings)} balls',
                       style: const TextStyle(
-                          color: Colors.amberAccent, // Amber for target info
+                          color: accentOrange, // Amber for target info
                           fontSize: 16,
                           fontWeight: FontWeight.bold),
                     ),
                     Text('RRR: ${rrr.toStringAsFixed(2)}',
                         style: const TextStyle(
-                            color: Colors.amberAccent,
+                            color: accentOrange,
                             fontSize: 16,
                             fontWeight: FontWeight.bold)),
                   ],
@@ -2389,15 +2392,12 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Extras - $_extras',
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                        style: TextStyle(fontSize: 14, color: Colors.white70)),
                     Text(
                         'Overs - ${_currentOversDisplay.toStringAsFixed(1)} / 20',
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                        style: TextStyle(fontSize: 14, color: Colors.white70)),
                     Text('CRR - ${crr.toStringAsFixed(1)}',
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.lightBlue.shade700)),
+                        style: TextStyle(fontSize: 14, color: Colors.white70)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -2406,7 +2406,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     'Partnership - $_partnershipRuns($_partnershipBalls)',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.lightBlue.shade800,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -2418,16 +2418,17 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     const Text('Batsman',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.lightBlue)),
+                            color: Colors.white)), // Consistent blue
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.all(4), // Reduced padding
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: lightBlue.withOpacity(
+                            0.5), // Semi-transparent card background
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.lightBlue.withOpacity(0.1),
+                            color: Colors.black.withOpacity(0.1),
                             spreadRadius: 1,
                             blurRadius: 3,
                             offset: const Offset(0, 2),
@@ -2446,8 +2447,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         children: [
                           TableRow(
                             decoration: BoxDecoration(
-                              color: Colors.lightBlue
-                                  .shade100, // Light blue for header row
+                              color: lightBlue, // Light blue for header row
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(8)),
                             ),
@@ -2458,8 +2458,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors
-                                            .lightBlue)), // Reduced font size
+                                        color:
+                                            Colors.white)), // Reduced font size
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2468,7 +2468,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2477,7 +2477,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2486,7 +2486,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2495,7 +2495,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2504,7 +2504,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                             ],
                           ),
@@ -2515,19 +2515,23 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     6.0), // Reduced padding
                                 child: Text('$batsman1Name*',
                                     style: const TextStyle(
-                                        fontSize: 13)), // Reduced font size
+                                        fontSize: 13,
+                                        color:
+                                            Colors.white)), // Reduced font size
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(batsman1Runs,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(batsman1Balls,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2543,7 +2547,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toString()
                                         : '0',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2559,7 +2564,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toString()
                                         : '0',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2575,7 +2581,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toStringAsFixed(1)
                                         : '0.0',
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                             ],
                           ),
@@ -2584,19 +2591,22 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(batsman2Name,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(batsman2Runs,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(batsman2Balls,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2612,7 +2622,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toString()
                                         : '0',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2628,7 +2639,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toString()
                                         : '0',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2644,7 +2656,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toStringAsFixed(1)
                                         : '0.0',
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                             ],
                           ),
@@ -2661,16 +2674,17 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     const Text('Bowler',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.lightBlue)),
+                            color: Colors.white)), // Consistent blue
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.all(4), // Reduced padding
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: lightBlue.withOpacity(
+                            0.5), // Semi-transparent card background
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.lightBlue.withOpacity(0.1),
+                            color: Colors.black.withOpacity(0.1),
                             spreadRadius: 1,
                             blurRadius: 3,
                             offset: const Offset(0, 2),
@@ -2689,8 +2703,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         children: [
                           TableRow(
                             decoration: BoxDecoration(
-                              color: Colors.lightBlue
-                                  .shade100, // Light blue for header row
+                              color: lightBlue, // Light blue for header row
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(8)),
                             ),
@@ -2701,8 +2714,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors
-                                            .lightBlue)), // Reduced font size
+                                        color:
+                                            Colors.white)), // Reduced font size
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2711,7 +2724,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2720,7 +2733,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2729,7 +2742,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2738,7 +2751,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: EdgeInsets.all(6.0),
@@ -2747,7 +2760,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
-                                        color: Colors.lightBlue)),
+                                        color: Colors.white)),
                               ),
                             ],
                           ),
@@ -2758,13 +2771,15 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                 child: Text(bowlerName,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 13)),
+                                        fontSize: 13,
+                                        color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(bowlerOvers,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2780,19 +2795,22 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toString()
                                         : '0',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(bowlerRuns,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
                                 child: Text(bowlerWickets,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(6.0),
@@ -2808,7 +2826,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                                             .toStringAsFixed(1)
                                         : '0.0',
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(fontSize: 13)),
+                                    style: const TextStyle(
+                                        fontSize: 13, color: Colors.white)),
                               ),
                             ],
                           ),
@@ -2824,7 +2843,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                       style: TextStyle(
                           fontSize: 15, // Reduced font size
                           fontWeight: FontWeight.bold,
-                          color: Colors.lightBlue.shade800)),
+                          color: Colors.white)),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 40, // Reduced height for the horizontal list
@@ -2836,9 +2855,9 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             1 -
                             index]; // Iterate in reverse order
                         String result = '';
-                        Color ballColor = Colors.lightBlue
-                            .shade200; // Default light blue ball color
-                        Color textColor = Colors.black;
+                        Color ballColor = lightBlue
+                            .withOpacity(0.7); // Default light blue ball color
+                        Color textColor = Colors.white;
 
                         if (ball['wicket_taken'] == true) {
                           result = 'W';
@@ -2849,16 +2868,16 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                           // Display actual total runs for the ball if extras (Wide penalty only now)
                           result =
                               '${ball['extra_type'][0]}${ball['extra_runs']}'; // Only show the 'extra penalty' amount
-                          ballColor = Colors.orange.shade400;
+                          ballColor = accentOrange;
                           textColor = Colors.white;
                         } else {
                           result = (ball['batsman_runs'] ?? 0).toString();
                           ballColor = ((ball['batsman_runs'] ?? 0) == 4)
-                              ? Colors.lightBlue.shade400 // Medium blue for 4
+                              ? lightBlue // Medium blue for 4
                               : ((ball['batsman_runs'] ?? 0) == 6)
                                   ? Colors.green.shade400 // Green for 6
-                                  : Colors
-                                      .lightBlue.shade200; // Default light blue
+                                  : lightBlue
+                                      .withOpacity(0.7); // Default light blue
                           textColor = Colors.white; // White text for runs
                         }
 
@@ -2959,8 +2978,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             style:
                                 TextStyle(fontSize: 13)), // Reduced font size
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade100,
-                          foregroundColor: Colors.blue.shade800,
+                          backgroundColor: lightBlue,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),
                           padding: const EdgeInsets.symmetric(
@@ -2978,8 +2997,8 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             style:
                                 TextStyle(fontSize: 13)), // Reduced font size
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade100,
-                          foregroundColor: Colors.blue.shade800,
+                          backgroundColor: lightBlue,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),
                           padding: const EdgeInsets.symmetric(
@@ -3038,7 +3057,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   // Builds the scoring input pad with various buttons for runs, extras, and wickets.
   Widget _buildScoringPad() {
     return Container(
-      color: Colors.lightBlue.shade600, // Background for the scoring pad
+      color: lightBlue, // Background for the scoring pad
       padding: const EdgeInsets.all(6.0), // Reduced overall padding
       child: Column(
         children: [
@@ -3067,7 +3086,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   wicketTaken: false,
                   totalRunsOnBall: 1,
                 );
-              }),
+              }, customColor: accentOrange, textColor: Colors.white),
               _buildScoreButton('2', () {
                 setState(() {
                   final List<Map<String, dynamic>> currentBattingTeam =
@@ -3090,7 +3109,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   wicketTaken: false,
                   totalRunsOnBall: 2,
                 );
-              }),
+              }, customColor: accentOrange, textColor: Colors.white),
               _buildScoreButton('3', () {
                 setState(() {
                   final List<Map<String, dynamic>> currentBattingTeam =
@@ -3113,7 +3132,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   wicketTaken: false,
                   totalRunsOnBall: 3,
                 );
-              }),
+              }, customColor: accentOrange, textColor: Colors.white),
               _buildScoreButton('4', () {
                 setState(() {
                   final List<Map<String, dynamic>> currentBattingTeam =
@@ -3140,7 +3159,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   wicketTaken: false,
                   totalRunsOnBall: 4,
                 );
-              }),
+              }, customColor: accentOrange, textColor: Colors.white),
               _buildScoreButton('6', () {
                 setState(() {
                   final List<Map<String, dynamic>> currentBattingTeam =
@@ -3167,35 +3186,35 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                   wicketTaken: false,
                   totalRunsOnBall: 6,
                 );
-              }),
+              }, customColor: accentOrange, textColor: Colors.white),
             ],
           ),
           // Second row of buttons (LB, Bye, Wide, NB, Dot) for extras and dot ball
           Row(
             children: [
               _buildScoreButton('LB', _handleLegByes,
-                  customColor: Colors.lightBlue.shade200,
-                  textColor: Colors.black,
+                  customColor: primaryBlue,
+                  textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
               _buildScoreButton('Bye', _handleByes,
-                  customColor: Colors.lightBlue.shade200,
-                  textColor: Colors.black,
+                  customColor: primaryBlue,
+                  textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
               _buildScoreButton('Wide', _handleWide,
-                  customColor: Colors.lightBlue.shade200,
-                  textColor: Colors.black,
+                  customColor: primaryBlue,
+                  textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
               _buildScoreButton('NB', _handleNoBall,
-                  customColor: Colors.lightBlue.shade200,
-                  textColor: Colors.black,
+                  customColor: primaryBlue,
+                  textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
               _buildScoreButton('Dot', _addBall, // Calls the _addBall method
-                  customColor: Colors.lightBlue.shade200,
-                  textColor: Colors.black,
+                  customColor: primaryBlue,
+                  textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
             ],
@@ -3204,7 +3223,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
           Row(
             children: [
               _buildScoreButton('Overthrow', _handleOverthrow,
-                  customColor: Colors.lightBlue.shade400,
+                  customColor: lightBlue,
                   textColor: Colors.white,
                   fontSize: 14,
                   padding: const EdgeInsets.symmetric(vertical: 12)),
@@ -3233,18 +3252,17 @@ class _MatchDetailPageState extends State<MatchDetailPage>
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color:
-                Colors.lightBlue.shade100, // Light blue for tab bar background
+                lightBlue.withOpacity(0.5), // Light blue for tab bar background
             borderRadius: BorderRadius.circular(25),
           ),
           child: TabBar(
             controller: _scorecardTeamTabController,
-            labelColor:
-                Colors.lightBlue.shade900, // Darker blue for selected label
+            labelColor: Colors.white, // Darker blue for selected label
             unselectedLabelColor:
-                Colors.lightBlue.shade600, // Mid blue for unselected label
+                Colors.white70, // Mid blue for unselected label
             indicator: BoxDecoration(
               borderRadius: BorderRadius.circular(25),
-              color: Colors.lightBlue.shade300, // Light blue for indicator
+              color: accentOrange, // Light blue for indicator
             ),
             tabs: [
               Tab(text: widget.match['teamA']?.toString() ?? 'Team A'),
@@ -3298,7 +3316,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.lightBlue)), // Consistent blue
+                  color: Colors.white)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -3311,6 +3329,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)), // Rounded corners
+                color: lightBlue.withOpacity(0.7), // Card background
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
@@ -3325,14 +3344,14 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.lightBlue.shade800),
+                                color: Colors.white),
                           ),
                           Text(
                             'R: ${player['runs'] ?? 0} (B: ${player['balls'] ?? 0})',
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.lightBlue.shade800),
+                                color: Colors.white),
                           ),
                         ],
                       ),
@@ -3340,33 +3359,33 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                         children: [
                           Text(
                             '4s: ',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(color: Colors.white70),
                           ),
                           Text(
                             '${player['fours'] ?? 0}',
                             style: TextStyle(
-                                color: Colors.lightBlue.shade700,
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold),
                           ),
                           Text(
                             ', 6s: ',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(color: Colors.white70),
                           ),
                           Text(
                             '${player['sixes'] ?? 0}',
                             style: TextStyle(
-                                color: Colors.lightBlue.shade700,
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold),
                           ),
                           Text(
                             ', SR: ${(player['sr'] as double? ?? 0.0).toStringAsFixed(2)}',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(color: Colors.white70),
                           ),
                         ],
                       ),
                       Text(
                           'Dismissal: ${player['dismissal']?.toString() ?? 'N/A'}',
-                          style: TextStyle(color: Colors.lightBlue.shade600)),
+                          style: TextStyle(color: Colors.white70)),
                     ],
                   ),
                 ),
@@ -3378,6 +3397,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
             margin: const EdgeInsets.symmetric(vertical: 4),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)), // Rounded corners
+            color: lightBlue.withOpacity(0.7), // Card background
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(
@@ -3388,14 +3408,14 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.lightBlue.shade800),
+                        color: Colors.white),
                   ),
                   Text(
                     _extras.toString(),
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.lightBlue.shade800),
+                        color: Colors.white),
                   ),
                 ],
               ),
@@ -3408,7 +3428,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.lightBlue)), // Consistent blue
+                  color: Colors.white)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -3421,6 +3441,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)), // Rounded corners
+                color: lightBlue.withOpacity(0.7), // Card background
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
@@ -3434,20 +3455,20 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.lightBlue.shade800),
+                                color: Colors.white),
                           ),
                           Text(
                             'O: ${(player['overs'] as double? ?? 0.0).toStringAsFixed(1)}, M: ${player['maidens'] ?? 0}',
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.lightBlue.shade800),
+                                color: Colors.white),
                           ),
                         ],
                       ),
                       Text(
                           'R: ${player['runs'] ?? 0}, W: ${player['wickets'] ?? 0}, Econ: ${(player['economy'] as double? ?? 0.0).toStringAsFixed(2)}',
-                          style: TextStyle(color: Colors.lightBlue.shade600)),
+                          style: TextStyle(color: Colors.white70)),
                     ],
                   ),
                 ),
@@ -3461,7 +3482,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.lightBlue)), // Consistent blue
+                  color: Colors.white)), // Consistent blue
           const SizedBox(height: 8),
           ListView.builder(
             shrinkWrap: true,
@@ -3476,20 +3497,17 @@ class _MatchDetailPageState extends State<MatchDetailPage>
                     borderRadius: BorderRadius.circular(10)), // Rounded corners
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.lightBlue.shade200, // Light blue
+                    backgroundColor: lightBlue.withOpacity(0.7), // Light blue
                     child: Text('${over['over'] ?? 0}',
-                        style: TextStyle(
-                            color:
-                                Colors.lightBlue.shade900)), // Darker blue text
+                        style:
+                            TextStyle(color: Colors.white)), // Darker blue text
                   ),
                   title: Text('Runs: ${over['runs'] ?? 0}',
                       style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color: Colors.lightBlue.shade800)),
+                          fontWeight: FontWeight.w500, color: Colors.white)),
                   trailing: Text('Wickets: ${over['wickets'] ?? 0}',
                       style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color: Colors.lightBlue.shade800)),
+                          fontWeight: FontWeight.w500, color: Colors.white)),
                 ),
               );
             },

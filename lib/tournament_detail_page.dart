@@ -16,11 +16,17 @@ class TournamentDetailPage extends StatelessWidget {
       required this.matchId,
       this.isAdmin = true}); // Default isAdmin to true for testing
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 5, // Increased to 5 for the new 'Stats' tab
       child: Scaffold(
+        backgroundColor: primaryBlue, // Set scaffold background
         appBar: AppBar(
           title: Text(
             tournament['name'],
@@ -29,11 +35,11 @@ class TournamentDetailPage extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: lightBlue, // Set app bar to lightBlue
           bottom: const TabBar(
-            labelColor: Colors.amber,
+            labelColor: accentOrange, // Orange for selected tab
             unselectedLabelColor: Colors.white,
-            indicatorColor: Colors.amber,
+            indicatorColor: accentOrange, // Orange indicator
             isScrollable: true, // Make tabs scrollable if many
             tabs: [
               Tab(text: 'About'),
@@ -63,6 +69,11 @@ class AboutTab extends StatelessWidget {
   final bool isAdmin;
 
   const AboutTab({super.key, required this.tournament, required this.isAdmin});
+
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +109,7 @@ class AboutTab extends StatelessWidget {
             icon: const Icon(Icons.edit),
             label: const Text('Update Tournament'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: accentOrange, // Use accentOrange for button
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               textStyle: const TextStyle(fontSize: 16),
@@ -115,13 +126,26 @@ class InfoTile extends StatelessWidget {
 
   const InfoTile({super.key, required this.title, required this.value});
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      color: lightBlue.withOpacity(0.7), // Card background with opacity
       child: ListTile(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(value),
+        title: Text(
+          title,
+          style: const TextStyle(
+              fontWeight: FontWeight.bold, color: Colors.white), // Text color
+        ),
+        subtitle: Text(
+          value,
+          style: const TextStyle(color: Colors.white70), // Subtitle text color
+        ),
       ),
     );
   }
@@ -184,6 +208,11 @@ class _FixturesTabState extends State<FixturesTab> {
 
   final DateFormat formatter = DateFormat('yyyy-MM-dd');
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   void addFixture(Map<String, String> newFixture) {
     setState(() {
       fixtures.add(newFixture);
@@ -206,7 +235,9 @@ class _FixturesTabState extends State<FixturesTab> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add Fixture'),
+          backgroundColor: primaryBlue, // Dialog background
+          title:
+              const Text('Add Fixture', style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             // Added SingleChildScrollView for dialog content
             child: Column(
@@ -214,17 +245,53 @@ class _FixturesTabState extends State<FixturesTab> {
               children: [
                 TextField(
                   controller: teamANameController,
-                  decoration: const InputDecoration(
-                      labelText: 'Team A Name'), // New field
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Team A Name',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: lightBlue),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: accentOrange),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: teamBNameController,
-                  decoration: const InputDecoration(
-                      labelText: 'Team B Name'), // New field
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Team B Name',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: lightBlue),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: accentOrange),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: venueController,
-                  decoration: const InputDecoration(labelText: 'Venue'),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Venue',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: lightBlue),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: accentOrange),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton(
@@ -234,6 +301,21 @@ class _FixturesTabState extends State<FixturesTab> {
                       initialDate: DateTime.now(),
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2030),
+                      builder: (context, child) {
+                        return Theme(
+                          data: ThemeData.dark().copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: accentOrange, // Header background color
+                              onPrimary: Colors.white, // Header text color
+                              surface: lightBlue, // Body background color
+                              onSurface: Colors.white, // Body text color
+                            ),
+                            dialogBackgroundColor:
+                                primaryBlue, // Dialog background
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (pickedDate != null) {
                       selectedDate = pickedDate;
@@ -242,6 +324,10 @@ class _FixturesTabState extends State<FixturesTab> {
                       }
                     }
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: lightBlue, // Button background
+                    foregroundColor: Colors.white, // Button text color
+                  ),
                   child: Text(selectedDate == null
                       ? "Select Date"
                       : formatter.format(selectedDate!)),
@@ -252,7 +338,8 @@ class _FixturesTabState extends State<FixturesTab> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel')),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Colors.white70))),
             ElevatedButton(
               onPressed: () {
                 if (teamANameController.text.isNotEmpty &&
@@ -278,6 +365,10 @@ class _FixturesTabState extends State<FixturesTab> {
                   );
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentOrange, // Save button background
+                foregroundColor: Colors.white, // Save button text color
+              ),
               child: const Text('Save'),
             ),
           ],
@@ -294,6 +385,7 @@ class _FixturesTabState extends State<FixturesTab> {
         widget.tournament['sportType']?.toLowerCase() ?? 'unknown';
 
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       body: ListView.builder(
         itemCount: fixtures.length,
         itemBuilder: (context, index) {
@@ -304,7 +396,7 @@ class _FixturesTabState extends State<FixturesTab> {
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             elevation: 5,
-            color: isUpcoming ? Colors.orange[100] : Colors.green[100],
+            color: lightBlue.withOpacity(0.7), // Card background
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
@@ -346,22 +438,28 @@ class _FixturesTabState extends State<FixturesTab> {
               },
               leading: Icon(
                 isUpcoming ? Icons.schedule : Icons.check_circle,
-                color: isUpcoming ? Colors.orange : Colors.green,
+                color: isUpcoming ? accentOrange : Colors.green, // Icon color
                 size: 32,
               ),
               title: Text(
                 '${match['teamA']} vs ${match['teamB']}', // Display dynamic team names
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white), // Title text color
               ),
               subtitle: Column(
                 // Use Column to ensure text wraps
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("📅 ${match['date']}"),
-                  Text("📍 ${match['venue']}"),
-                  Text(isUpcoming
-                      ? "Status: Upcoming"
-                      : "🏆 Score: ${match['score']}"),
+                  Text("Date: ${match['date']}",
+                      style: const TextStyle(color: Colors.white70)),
+                  Text("Venue: ${match['venue']}",
+                      style: const TextStyle(color: Colors.white70)),
+                  Text(
+                      isUpcoming
+                          ? "Status: Upcoming"
+                          : "Score: ${match['score']}",
+                      style: const TextStyle(color: Colors.white70)),
                 ],
               ),
               trailing: IconButton(
@@ -370,19 +468,29 @@ class _FixturesTabState extends State<FixturesTab> {
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Delete Fixture'),
+                      backgroundColor: primaryBlue, // Dialog background
+                      title: const Text('Delete Fixture',
+                          style: TextStyle(color: Colors.white)),
                       content: Text(
-                          'Delete "${match['teamA']} vs ${match['teamB']}"?'), // Dynamic team names
+                          'Delete "${match['teamA']} vs ${match['teamB']}"?', // Dynamic team names
+                          style: const TextStyle(color: Colors.white70)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancel'),
+                          child: const Text('Cancel',
+                              style: TextStyle(color: Colors.white70)),
                         ),
                         ElevatedButton(
                           onPressed: () {
                             deleteFixture(index);
                             Navigator.of(ctx).pop();
                           },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                accentOrange, // Delete button background
+                            foregroundColor:
+                                Colors.white, // Delete button text color
+                          ),
                           child: const Text('Delete'),
                         ),
                       ],
@@ -396,7 +504,8 @@ class _FixturesTabState extends State<FixturesTab> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddFixtureDialog,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: accentOrange, // FAB color
+        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
     );
@@ -411,6 +520,11 @@ class TeamsTab extends StatefulWidget {
 }
 
 class _TeamsTabState extends State<TeamsTab> {
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   Map<String, List<String>> teamPlayers = {
     'Team A': ['Player A1', 'Player A2', 'Player A3'],
     'Team B': ['Player B1', 'Player B2'],
@@ -425,70 +539,93 @@ class _TeamsTabState extends State<TeamsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: teamPlayers.entries.map((entry) {
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          elevation: 4,
-          color: Colors.lightBlue[50],
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            leading: const Icon(Icons.groups, color: Colors.blueAccent),
-            title: Text(
-              entry.key,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+    return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
+      body: ListView(
+        children: teamPlayers.entries.map((entry) {
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            elevation: 4,
+            color: lightBlue.withOpacity(0.7), // Card background
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
+              leading:
+                  const Icon(Icons.groups, color: accentOrange), // Icon color
+              title: Text(
+                entry.key,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white), // Title text color
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: primaryBlue, // Dialog background
+                          title: const Text('Delete Team',
+                              style: TextStyle(color: Colors.white)),
+                          content: Text(
+                              'Are you sure you want to delete ${entry.key}?',
+                              style: TextStyle(color: Colors.white70)),
+                          actions: [
+                            TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('Cancel',
+                                    style: TextStyle(color: Colors.white70))),
+                            ElevatedButton(
+                              onPressed: () {
+                                deleteTeam(entry.key);
+                                Navigator.of(ctx).pop();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    accentOrange, // Delete button background
+                                foregroundColor:
+                                    Colors.white, // Delete button text color
+                              ),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios,
+                        size: 16, color: accentOrange), // Icon color
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlayersPage(teamName: entry.key),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Delete Team'),
-                        content: Text(
-                            'Are you sure you want to delete ${entry.key}?'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text('Cancel')),
-                          ElevatedButton(
-                            onPressed: () {
-                              deleteTeam(entry.key);
-                              Navigator.of(ctx).pop();
-                            },
-                            child: const Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PlayersPage(teamName: entry.key),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 }
 
 class PointsTableTab extends StatelessWidget {
   const PointsTableTab({super.key});
+
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
   final List<Map<String, dynamic>> pointsData = const [
     {
@@ -519,51 +656,92 @@ class PointsTableTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient:
-                LinearGradient(colors: [Colors.purple, Colors.deepPurple]),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: const Center(
-            child: Text(
-              'Points Table',
-              style: TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold),
+    return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
+      body: Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [
+                lightBlue,
+                primaryBlue
+              ]), // Gradient using theme colors
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: const Center(
+              child: Text(
+                'Points Table',
+                style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-        ),
-        // Ensures the DataTable is horizontally scrollable
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: MaterialStateProperty.all(Colors.deepPurple[100]),
-            dataRowColor: MaterialStateProperty.all(Colors.grey[50]),
-            columns: const [
-              DataColumn(label: Text('Team')),
-              DataColumn(label: Text('P')),
-              DataColumn(label: Text('W')),
-              DataColumn(label: Text('L')),
-              DataColumn(label: Text('NRR')),
-              DataColumn(label: Text('Pts')),
-            ],
-            rows: pointsData.map((team) {
-              return DataRow(cells: [
-                DataCell(Text(team['team'])),
-                DataCell(Text(team['played'].toString())),
-                DataCell(Text(team['won'].toString())),
-                DataCell(Text(team['lost'].toString())),
-                DataCell(Text(team['nrr'].toString())),
-                DataCell(Text(team['points'].toString())),
-              ]);
-            }).toList(),
+          // Ensures the DataTable is horizontally scrollable
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing:
+                  60, // Increased spacing between columns for better look
+              horizontalMargin: 16, // Margin from the card edges
+              dataRowMinHeight: 40, // Minimum height for data rows
+              dataRowMaxHeight: 60, // Maximum height for data rows
+              headingRowHeight: 50, // Height for heading row
+              dividerThickness: 1.5, // Thicker dividers for better separation
+              decoration: BoxDecoration(
+                // Added border to the table
+                border: Border.all(color: Colors.grey.shade300, width: 1),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(12)),
+              ),
+              headingRowColor: MaterialStateProperty.all(
+                  lightBlue.withOpacity(0.5)), // Header background
+              dataRowColor: MaterialStateProperty.all(Colors.white.withOpacity(
+                  0.9)), // Consistent white background for data rows
+              columns: pointsData[0]
+                  .keys
+                  .map((header) => DataColumn(
+                        // Dynamically create columns
+                        label: Text(
+                          header
+                              .toUpperCase(), // Convert to uppercase for headers
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.white), // Header text color
+                        ),
+                      ))
+                  .toList(),
+              rows: pointsData.map((team) {
+                return DataRow(cells: [
+                  DataCell(Text(team['team'].toString(),
+                      style: const TextStyle(
+                          color: primaryBlue))), // Data cell text color
+                  DataCell(Text(team['played'].toString(),
+                      style: const TextStyle(color: primaryBlue))),
+                  DataCell(Text(team['won'].toString(),
+                      style: const TextStyle(color: primaryBlue))),
+                  DataCell(Text(team['lost'].toString(),
+                      style: const TextStyle(color: primaryBlue))),
+                  DataCell(Text(team['nrr'].toString(),
+                      style: const TextStyle(color: primaryBlue))),
+                  DataCell(Text(team['points'].toString(),
+                      style: const TextStyle(color: primaryBlue))),
+                ]);
+              }).toList(),
+            ),
           ),
-        ),
-      ],
+          if (pointsData.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Center(
+                child: Text('No data available for Points Table.',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -635,6 +813,11 @@ class _StatsTabState extends State<StatsTab> {
     {'name': 'Racquet Player 3', 'points': 190},
   ];
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   // Helper method to get the data based on the selected category
   List<Map<String, dynamic>> _getCurrentStatsData() {
     switch (_selectedStatCategory) {
@@ -684,39 +867,54 @@ class _StatsTabState extends State<StatsTab> {
     switch (_selectedStatCategory) {
       case 'Most Runs':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['runs'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['runs'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Most Fours':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['fours'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['fours'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Most Sixes':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['sixes'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['sixes'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Most Wickets':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['wickets'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['wickets'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Best Economy':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['economy'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['economy'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Best Bowlers':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['wickets'].toString())),
-          DataCell(Text(data['economy'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['wickets'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['economy'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       case 'Most Points Scored':
         return [
-          DataCell(Text(data['name'])),
-          DataCell(Text(data['points'].toString())),
+          DataCell(Text(data['name'].toString(),
+              style: const TextStyle(color: primaryBlue))),
+          DataCell(Text(data['points'].toString(),
+              style: const TextStyle(color: primaryBlue))),
         ];
       default:
         return [];
@@ -725,57 +923,61 @@ class _StatsTabState extends State<StatsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Dropdown for selecting stats category
-          Card(
-            margin: const EdgeInsets.only(bottom: 20),
-            elevation: 4,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedStatCategory,
-                  icon: const Icon(Icons.arrow_drop_down,
-                      color: Colors.deepPurple),
-                  iconSize: 24,
-                  elevation: 16,
-                  style: const TextStyle(
-                      color: Colors.deepPurple,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedStatCategory = newValue!;
-                    });
-                  },
-                  items: _statCategories
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+    return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Dropdown for selecting stats category
+            Card(
+              margin: const EdgeInsets.only(bottom: 20),
+              elevation: 4,
+              color: lightBlue.withOpacity(0.7), // Card background
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedStatCategory,
+                    icon: const Icon(Icons.arrow_drop_down,
+                        color: accentOrange), // Icon color
+                    iconSize: 24,
+                    elevation: 16,
+                    style: const TextStyle(
+                        color: Colors.orange, // Text color
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        _selectedStatCategory = newValue!;
+                      });
+                    },
+                    items: _statCategories
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Display the selected stats section
-          _buildStatsSection(
-            context,
-            _selectedStatCategory,
-            _getCurrentStatsData(),
-            _getCurrentColumnHeaders(),
-            _getCurrentRowBuilder,
-          ),
-        ],
+            // Display the selected stats section
+            _buildStatsSection(
+              context,
+              _selectedStatCategory,
+              _getCurrentStatsData(),
+              _getCurrentColumnHeaders(),
+              _getCurrentRowBuilder,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -789,6 +991,7 @@ class _StatsTabState extends State<StatsTab> {
     return Card(
       margin: const EdgeInsets.only(bottom: 20),
       elevation: 4,
+      color: lightBlue.withOpacity(0.7), // Card background
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -797,9 +1000,9 @@ class _StatsTabState extends State<StatsTab> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                Colors.deepPurple.shade400,
-                Colors.deepPurple.shade700
-              ]),
+                lightBlue,
+                primaryBlue
+              ]), // Gradient using theme colors
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
             ),
@@ -830,9 +1033,10 @@ class _StatsTabState extends State<StatsTab> {
                 borderRadius:
                     const BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
-              headingRowColor: MaterialStateProperty.all(Colors.grey[200]),
-              dataRowColor: MaterialStateProperty.all(
-                  Colors.white), // Consistent white background for data rows
+              headingRowColor: MaterialStateProperty.all(
+                  lightBlue.withOpacity(0.5)), // Header background
+              dataRowColor: MaterialStateProperty.all(Colors.white.withOpacity(
+                  0.9)), // Consistent white background for data rows
               columns: columnHeaders
                   .map((header) => DataColumn(
                         label: Text(
@@ -840,8 +1044,7 @@ class _StatsTabState extends State<StatsTab> {
                           style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: Colors
-                                  .deepPurple), // Enhanced header text style
+                              color: Colors.white), // Header text color
                         ),
                       ))
                   .toList(),
@@ -854,7 +1057,7 @@ class _StatsTabState extends State<StatsTab> {
               padding: const EdgeInsets.all(16.0),
               child: Center(
                 child: Text('No data available for $title.',
-                    style: TextStyle(color: Colors.grey[600])),
+                    style: TextStyle(color: Colors.white70)),
               ),
             ),
         ],

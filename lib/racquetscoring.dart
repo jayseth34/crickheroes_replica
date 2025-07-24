@@ -41,6 +41,11 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   final int _winningLead = 2; // Required lead to win a set
   final int _targetSets = 3; // Best of 3 sets to win the match
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -71,13 +76,16 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
+          backgroundColor: primaryBlue, // Dialog background
           title: const Text('Who serves first?',
-              style: TextStyle(color: Colors.blueAccent)),
+              style: TextStyle(color: accentOrange)), // Title color
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: _allPlayers
                 .map((playerName) => ListTile(
-                      title: Text(playerName),
+                      title: Text(playerName,
+                          style: const TextStyle(
+                              color: Colors.white)), // Text color
                       onTap: () => Navigator.of(dialogContext).pop(playerName),
                     ))
                 .toList(),
@@ -346,16 +354,18 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: primaryBlue, // Dialog background
           title: const Text('Set Winner!',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  fontWeight: FontWeight.bold,
+                  color: accentOrange)), // Title color
           content: Text(
               '$winner won the set! Current sets: Team 1: $_team1Sets, Team 2: $_team2Sets',
-              style: const TextStyle(color: Colors.blueGrey)),
+              style: const TextStyle(color: Colors.white70)), // Content color
           actions: <Widget>[
             TextButton(
-              child:
-                  const Text('OK', style: TextStyle(color: Colors.blueAccent)),
+              child: const Text('OK',
+                  style: TextStyle(color: accentOrange)), // Button color
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -387,16 +397,18 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: primaryBlue, // Dialog background
           title: const Text('Match Over!',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  fontWeight: FontWeight.bold,
+                  color: accentOrange)), // Title color
           content: Text(
               'Congratulations! $winner won the match $_team1Sets - $_team2Sets.',
-              style: const TextStyle(color: Colors.blueGrey)),
+              style: const TextStyle(color: Colors.white70)), // Content color
           actions: <Widget>[
             TextButton(
               child: const Text('New Match',
-                  style: TextStyle(color: Colors.blueAccent)),
+                  style: TextStyle(color: accentOrange)), // Button color
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
                 _resetMatch(); // Reset everything for a new match
@@ -410,7 +422,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 Navigator.pop(context); // Go back to the previous screen
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700, // Blue button
+                backgroundColor: lightBlue, // Blue button
                 foregroundColor: Colors.white,
               ),
             ),
@@ -427,16 +439,18 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: primaryBlue, // Dialog background
           title: const Text('End Match?',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                  fontWeight: FontWeight.bold,
+                  color: accentOrange)), // Title color
           content: const Text(
               'Are you sure you want to end the current match? All current scores and set history will be lost.',
-              style: TextStyle(color: Colors.blueGrey)),
+              style: TextStyle(color: Colors.white70)), // Content color
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel',
-                  style: TextStyle(color: Colors.blueAccent)),
+                  style: TextStyle(color: accentOrange)), // Button color
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
               },
@@ -479,8 +493,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor:
-          Colors.blue.shade800, // Dark blue background for bottom sheet
+      backgroundColor: primaryBlue, // Dark blue background for bottom sheet
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(15), // Reduced padding
@@ -497,7 +510,8 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               ),
               const SizedBox(height: 12), // Reduced space
               ListTile(
-                leading: const Icon(Icons.undo, color: Colors.white),
+                leading:
+                    const Icon(Icons.undo, color: accentOrange), // Icon color
                 title: const Text('Undo Last Point',
                     style: TextStyle(
                         color: Colors.white, fontSize: 13)), // Smaller font
@@ -507,7 +521,8 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.refresh, color: Colors.white),
+                leading: const Icon(Icons.refresh,
+                    color: accentOrange), // Icon color
                 title: const Text('Reset Current Set',
                     style: TextStyle(
                         color: Colors.white, fontSize: 13)), // Smaller font
@@ -517,7 +532,8 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.replay, color: Colors.white),
+                leading:
+                    const Icon(Icons.replay, color: accentOrange), // Icon color
                 title: const Text('Reset Entire Match',
                     style: TextStyle(
                         color: Colors.white, fontSize: 13)), // Smaller font
@@ -527,7 +543,8 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.exit_to_app, color: Colors.white),
+                leading: const Icon(Icons.exit_to_app,
+                    color: Colors.red), // Icon color
                 title: const Text('End Match',
                     style: TextStyle(
                         color: Colors.white, fontSize: 13)), // Smaller font
@@ -539,7 +556,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade600, // Button color
+                  backgroundColor: lightBlue, // Button color
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
@@ -589,10 +606,10 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
         title:
             const Text('Match Scoring', style: TextStyle(color: Colors.white)),
         elevation: 0,
-        backgroundColor: Colors.blue.shade900, // AppBar background
+        backgroundColor: lightBlue, // AppBar background
         foregroundColor: Colors.white,
       ),
-      backgroundColor: Colors.blue.shade900, // Overall background
+      backgroundColor: primaryBlue, // Overall background
       body: Column(
         children: <Widget>[
           // Main Score and Team Info Section
@@ -604,7 +621,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(8.0), // Added padding
-                    color: Colors.blue.shade900,
+                    color: primaryBlue, // Background color
                     child: Column(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceEvenly, // Distribute space
@@ -629,7 +646,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                               Text(
                                 '($currentServerName serving)', // Explicit serving text
                                 style: const TextStyle(
-                                    color: Colors.amber,
+                                    color: accentOrange, // Accent orange
                                     fontSize: 11), // Smaller font
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
@@ -673,7 +690,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                         child: ElevatedButton(
                           onPressed: _resetCurrentSetScores,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
+                            backgroundColor: lightBlue, // Button color
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(5)),
@@ -691,7 +708,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                         child: ElevatedButton(
                           onPressed: _toggleServe,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
+                            backgroundColor: lightBlue, // Button color
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(5)),
@@ -708,7 +725,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                         child: ElevatedButton(
                           onPressed: _showMoreOptions,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade700,
+                            backgroundColor: lightBlue, // Button color
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(5)),
@@ -725,7 +742,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(8.0), // Added padding
-                    color: Colors.blue.shade900,
+                    color: primaryBlue, // Background color
                     child: Column(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceEvenly, // Distribute space
@@ -750,7 +767,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                               Text(
                                 '($currentServerName serving)', // Explicit serving text
                                 style: const TextStyle(
-                                    color: Colors.amber,
+                                    color: accentOrange, // Accent orange
                                     fontSize: 11), // Smaller font
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
@@ -787,7 +804,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
           Expanded(
             flex: 1, // Give less flex to the buttons area
             child: Container(
-              color: Colors.blue.shade900,
+              color: primaryBlue, // Background color
               padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
               child: Row(
                 children: [
@@ -795,7 +812,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     child: ElevatedButton(
                       onPressed: _incrementTeam1Score,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
+                        backgroundColor: lightBlue, // Button color
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
@@ -824,7 +841,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                           child: ElevatedButton(
                             onPressed: _decrementTeam1Score,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade700,
+                              backgroundColor: lightBlue, // Button color
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(5)),
@@ -841,7 +858,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                           child: ElevatedButton(
                             onPressed: _decrementTeam2Score,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade700,
+                              backgroundColor: lightBlue, // Button color
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(5)),
@@ -861,7 +878,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     child: ElevatedButton(
                       onPressed: _incrementTeam2Score,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
+                        backgroundColor: lightBlue, // Button color
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
@@ -881,7 +898,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
           ),
           // Set History
           Container(
-            color: Colors.blue.shade900,
+            color: primaryBlue, // Background color
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
             child: Column(
               children: [
@@ -908,11 +925,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                             label: Text(
                               'S${index + 1}: ${set['team1']}-${set['team2']}',
                               style: const TextStyle(
-                                  color: Colors.white,
+                                  color: primaryBlue, // Text color
                                   fontWeight: FontWeight.bold,
                                   fontSize: 10),
                             ),
-                            backgroundColor: Colors.blue.shade600,
+                            backgroundColor: accentOrange
+                                .withOpacity(0.8), // Background color
                             elevation: 0.5,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 4, vertical: 0),

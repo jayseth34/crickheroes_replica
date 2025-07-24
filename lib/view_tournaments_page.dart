@@ -39,6 +39,11 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
   List<Tournament> _filteredTournaments = []; // Changed to use Tournament model
   bool _isLoading = true;
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -102,9 +107,6 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
     }
   }
 
-  // This method is kept for demonstration if you were using static data,
-  // but the primary fetchTournaments will use the API.
-
   String formatDate(String isoDate) {
     try {
       final date = DateTime.parse(isoDate);
@@ -117,32 +119,57 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set background to primaryBlue
       appBar: AppBar(
-        title: const Text('Tournaments'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: const Text('Tournaments', style: TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
         elevation: 1,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                  color: accentOrange)) // Loading indicator color
           : Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: TextField(
                     controller: _searchController,
+                    style: const TextStyle(
+                        color: Colors.white), // Text input color
                     decoration: InputDecoration(
                       hintText: 'Search tournaments...',
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle:
+                          TextStyle(color: Colors.white70), // Hint text color
+                      prefixIcon: const Icon(Icons.search,
+                          color: Colors.white70), // Icon color
+                      filled: true,
+                      fillColor:
+                          lightBlue.withOpacity(0.5), // Text field background
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none, // No border line
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: accentOrange,
+                            width: 2), // Orange border on focus
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Colors.white30), // Light border when enabled
                       ),
                     ),
                   ),
                 ),
                 Expanded(
                   child: _filteredTournaments.isEmpty
-                      ? const Center(child: Text("No tournaments found"))
+                      ? const Center(
+                          child: Text("No tournaments found",
+                              style: TextStyle(color: Colors.white70)))
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: _filteredTournaments.length,
@@ -154,6 +181,8 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16)),
                               elevation: 3,
+                              color: lightBlue.withOpacity(
+                                  0.7), // Card background with opacity
                               child: ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20, vertical: 16),
@@ -162,19 +191,20 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
-                                    color: Colors.black87,
+                                    color: Colors.white, // Title text color
                                   ),
                                 ),
                                 subtitle: Text(
                                   "Sport: ${tournament.sportType ?? 'N/A'}  •  Starts: ${formatDate(tournament.startDate ?? '')}",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
+                                  style: const TextStyle(
+                                    color:
+                                        Colors.white70, // Subtitle text color
                                     fontSize: 14,
                                   ),
                                 ),
                                 trailing: const Icon(
                                   Icons.arrow_forward_ios,
-                                  color: Colors.blueAccent,
+                                  color: accentOrange, // Trailing icon color
                                   size: 20,
                                 ),
                                 onTap: () {
@@ -187,12 +217,7 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                           'name': tournament.name,
                                           'sportType': tournament.sportType,
                                           'startDate': tournament.startDate,
-                                          // Add other fields from the Tournament object that TournamentDetailPage expects
-                                          // For example, if your Tournament class has 'endDate', 'organizer', 'location', 'description'
-                                          // 'endDate': tournament.endDate,
-                                          // 'organizer': tournament.organizer,
-                                          // 'location': tournament.location,
-                                          // 'description': tournament.description,
+                                          // Add other fields if needed by AddPlayerPage
                                         },
                                         matchId:
                                             0, // Placeholder, adjust as needed

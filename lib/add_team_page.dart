@@ -33,6 +33,11 @@ class _AddTeamPageState extends State<AddTeamPage> {
   String?
       _imageFileName; // To store the original filename (optional for JSON payload)
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -128,10 +133,11 @@ class _AddTeamPageState extends State<AddTeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: const Text('Add Team'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: const Text('Add Team', style: TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
         elevation: 1,
       ),
       body: SingleChildScrollView(
@@ -145,7 +151,7 @@ class _AddTeamPageState extends State<AddTeamPage> {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Colors.white, // Text color
                 ),
               ),
               const SizedBox(height: 24),
@@ -153,7 +159,8 @@ class _AddTeamPageState extends State<AddTeamPage> {
                 onTap: _pickImage,
                 child: CircleAvatar(
                   radius: 60,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor:
+                      lightBlue.withOpacity(0.5), // Light blue with opacity
                   // Use MemoryImage from base64 string for display
                   backgroundImage: _base64Image != null
                       ? MemoryImage(base64Decode(_base64Image!))
@@ -161,17 +168,22 @@ class _AddTeamPageState extends State<AddTeamPage> {
                   child:
                       _base64Image == null // Check base64Image for icon display
                           ? const Icon(Icons.camera_alt,
-                              size: 36, color: Colors.black45)
+                              size: 36,
+                              color: accentOrange) // Accent orange icon
                           : null,
                 ),
               ),
               const SizedBox(height: 10), // Reduced space
-              const Text("Tap to select team logo"), // Added text for clarity
+              const Text("Tap to select team logo",
+                  style:
+                      TextStyle(color: Colors.white)), // Added text for clarity
               const SizedBox(height: 24),
               Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -197,10 +209,11 @@ class _AddTeamPageState extends State<AddTeamPage> {
                     _submitTeam();
                   }
                 },
-                icon: const Icon(Icons.check),
-                label: const Text('Save Team'),
+                icon: const Icon(Icons.check, color: Colors.white),
+                label: const Text('Save Team',
+                    style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: accentOrange, // Accent orange
                   foregroundColor: Colors.white,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
@@ -221,15 +234,22 @@ class _AddTeamPageState extends State<AddTeamPage> {
       {required TextEditingController controller, bool isRequired = false}) {
     return TextFormField(
       controller: controller,
+      style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: label,
-        labelStyle:
-            const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.white70), // Label text color
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: lightBlue), // Light blue
           borderRadius: BorderRadius.circular(12),
         ),
       ),

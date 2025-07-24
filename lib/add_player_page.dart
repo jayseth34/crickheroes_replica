@@ -48,15 +48,26 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   // This list will hold the roles currently displayed in the dropdown
   List<String> currentRoles = [];
 
-  File? _selectedImage;
-  String? _base64Image;
-  String? _imageFileName; // To store the filename
+  // Removed _selectedImage and _imageFileName as image picker is removed
+  String? _base64Image; // To store the base64 string of the profile image
+
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
   @override
   void initState() {
     super.initState();
     // Use the sportType from the full tournament object
     _updateRolesForSport(widget.tournament['sportType'] ?? '');
+
+    // Initialize a dummy base64 image for demonstration purposes
+    // In a real application, you would fetch the existing profile image or
+    // ensure it's set before this page is accessed if it's mandatory.
+    // For this demonstration, we'll assume a dummy image exists if not explicitly provided.
+    _base64Image =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="; // A 1x1 transparent PNG base64
   }
 
   // Function to update roles based on the sport name
@@ -84,27 +95,32 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     });
   }
 
-  Future<void> pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _selectedImage = File(image.path);
-        _base64Image = base64Encode(bytes);
-        _imageFileName = image.name; // Store the original filename
-        // Debug print to confirm image path and base64 string
-        print('Image selected path: ${image.path}');
-        print('Base64 image length: ${_base64Image?.length ?? 0}');
-        print('Image filename: $_imageFileName');
-      });
-    } else {
-      print('No image selected.');
-    }
-  }
+  // Removed pickImage method
 
   Future<void> savePlayer() async {
+    // Check if a profile image is present
+    if (_base64Image == null || _base64Image!.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: primaryBlue, // Dialog background
+          title: const Text('Profile Image Required',
+              style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'Please update your profile image first (e.g., in your profile settings) before adding a player.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK', style: TextStyle(color: accentOrange)),
+            ),
+          ],
+        ),
+      );
+      return; // Stop execution if no image
+    }
+
     // Define the API endpoint URL
     final url =
         Uri.parse("https://sportsdecor.somee.com/api/Player/SavePlayer");
@@ -127,13 +143,13 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
         ''; // Send the selected role (will be '' for racquet sports)
 
     // Add the image file to the request if one has been selected
-    if (_base64Image != null && _imageFileName != null) {
-      // Decode the base64 string back to bytes
+    // Since image picker is removed, we assume _base64Image is pre-populated or handled elsewhere
+    if (_base64Image != null && _base64Image!.isNotEmpty) {
       Uint8List imageBytes = base64Decode(_base64Image!);
       request.files.add(http.MultipartFile.fromBytes(
         'ProfileImage', // This key must exactly match the 'ProfileImage' property name in your C# PlayerDto
         imageBytes,
-        filename: _imageFileName, // Use the stored original filename
+        filename: 'profile_image.png', // Generic filename since no picker
       ));
     }
 
@@ -187,10 +203,11 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: Text('Add Player'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: const Text('Add Player', style: TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
         elevation: 1,
       ),
       body: SingleChildScrollView(
@@ -204,31 +221,34 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Colors.white, // Text color
                 ),
               ),
               const SizedBox(height: 24),
-              GestureDetector(
-                onTap: pickImage,
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey.shade300,
-                  // Changed this line to use MemoryImage from base64 string
-                  backgroundImage: _base64Image != null
-                      ? MemoryImage(base64Decode(_base64Image!))
-                      : null,
-                  child: _selectedImage == null
-                      ? Icon(Icons.camera_alt, size: 40, color: Colors.black45)
-                      : null,
-                ),
+              // Removed GestureDetector for image picking
+              CircleAvatar(
+                radius: 50,
+                backgroundColor:
+                    lightBlue.withOpacity(0.5), // Light blue with opacity
+                backgroundImage:
+                    _base64Image != null && _base64Image!.isNotEmpty
+                        ? MemoryImage(base64Decode(_base64Image!))
+                        : null,
+                child: (_base64Image == null || _base64Image!.isEmpty)
+                    ? Icon(Icons.person,
+                        size: 40, color: accentOrange) // Generic person icon
+                    : null,
               ),
               const SizedBox(height: 10),
-              const Text("Tap to select profile image"),
+              const Text("Profile Image (Required)",
+                  style: TextStyle(color: Colors.white)), // Text color
               const SizedBox(height: 20),
               Card(
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
                 elevation: 3,
+                color:
+                    lightBlue.withOpacity(0.7), // Card background with opacity
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -283,7 +303,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                   final isValid = _formKey.currentState!.validate();
                   print('Form validation result: $isValid'); // Debug print
                   if (isValid) {
-                    savePlayer();
+                    savePlayer(); // This will now handle the image check
                   } else {
                     // Show a SnackBar if validation fails
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -294,10 +314,11 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                     );
                   }
                 },
-                icon: const Icon(Icons.check),
-                label: const Text('Submit'),
+                icon: const Icon(Icons.check, color: Colors.white),
+                label:
+                    const Text('Submit', style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
+                  backgroundColor: accentOrange, // Accent orange
                   foregroundColor: Colors.white,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
@@ -322,15 +343,22 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     return TextFormField(
       controller: controller,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: label,
-        labelStyle:
-            const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.white70), // Label text color
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: lightBlue), // Light blue
           borderRadius: BorderRadius.circular(12),
         ),
       ),
@@ -350,20 +378,32 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   }) {
     return DropdownButtonFormField<String>(
       value: value,
+      style: const TextStyle(color: Colors.white), // Dropdown text color
+      dropdownColor: lightBlue, // Dropdown background color
       decoration: InputDecoration(
         labelText: label,
-        labelStyle:
-            const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.white70), // Label text color
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+          borderSide:
+              const BorderSide(color: accentOrange, width: 2), // Accent orange
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: lightBlue), // Light blue
           borderRadius: BorderRadius.circular(12),
         ),
       ),
       items: options
-          .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+          .map((opt) => DropdownMenuItem(
+              value: opt,
+              child: Text(opt,
+                  style:
+                      const TextStyle(color: Colors.white)))) // Item text color
           .toList(),
       onChanged: onChanged,
       // Only apply validator if isRequired is true and there are options to select from

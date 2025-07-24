@@ -8,6 +8,11 @@ import 'add_tournament_page.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   Widget build(BuildContext context) {
     final tournaments = [
@@ -30,16 +35,12 @@ class HomePage extends StatelessWidget {
     ];
 
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: const Text('Cricheroes'),
-        backgroundColor: Colors.blueAccent,
+        title: const Text('Cricheroes', style: TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
-          ),
-        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -49,6 +50,8 @@ class HomePage extends StatelessWidget {
           );
         },
         tooltip: "Add a Tournament",
+        backgroundColor: accentOrange, // Set FAB to accentOrange
+        foregroundColor: Colors.white, // White icon
         child: const Icon(Icons.add),
       ),
       drawer: Drawer(
@@ -153,13 +156,15 @@ class HomePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
-            const Divider(thickness: 1.2),
+            const Divider(
+                thickness: 1.2, color: Colors.white30), // Divider color
             _sectionTitle("About the App"),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Text(
                 "Cricheroes is your all-in-one tournament manager that makes organizing sports events easy and powerful.",
-                style: TextStyle(fontSize: 14),
+                style: TextStyle(
+                    fontSize: 14, color: Colors.white70), // Text color
               ),
             ),
             const Padding(
@@ -193,7 +198,8 @@ class HomePage extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Text(
                 "Built for tournament organizers, coaches, and sports lovers.",
-                style: TextStyle(fontSize: 14),
+                style: TextStyle(
+                    fontSize: 14, color: Colors.white70), // Text color
               ),
             ),
           ],
@@ -204,18 +210,23 @@ class HomePage extends StatelessWidget {
 
   Widget _buildUserHeader(BuildContext context) {
     return UserAccountsDrawerHeader(
-      decoration: BoxDecoration(color: Colors.blue.shade700),
+      decoration: const BoxDecoration(
+          color: lightBlue), // Set DrawerHeader to lightBlue
       accountName: const Text(
         "User Name",
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.white), // White text
       ),
-      accountEmail: const Text("user@example.com"),
+      accountEmail: const Text("user@example.com",
+          style: TextStyle(color: Colors.white70)), // White70 text
       currentAccountPicture: CircleAvatar(
-        backgroundColor: Colors.white,
+        backgroundColor: accentOrange, // Set avatar background to accentOrange
         child: Icon(
           Icons.person,
           size: 50,
-          color: Colors.blue.shade700,
+          color: Colors.white, // White icon
         ),
       ),
       margin: EdgeInsets.zero,
@@ -233,7 +244,10 @@ class HomePage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
         child: Text(
           text,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white), // White text
         ),
       );
 
@@ -243,8 +257,9 @@ class HomePage extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      leading: Icon(icon, color: accentOrange), // Accent orange icon
+      title: Text(title,
+          style: const TextStyle(color: primaryBlue)), // Primary blue text
       onTap: onTap,
     );
   }
@@ -256,6 +271,7 @@ class HomePage extends StatelessWidget {
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         clipBehavior: Clip.antiAlias,
+        color: lightBlue.withOpacity(0.7), // Card background with opacity
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -264,8 +280,10 @@ class HomePage extends StatelessWidget {
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  Container(height: 120, color: Colors.grey.shade300),
+              errorBuilder: (_, __, ___) => Container(
+                  height: 120,
+                  color: primaryBlue
+                      .withOpacity(0.5)), // Primary blue with opacity
             ),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -277,12 +295,14 @@ class HomePage extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white), // White text
                   ),
                   const SizedBox(height: 6),
                   Text(
                     date,
-                    style: TextStyle(color: Colors.grey.shade600),
+                    style: TextStyle(color: Colors.white70), // White70 text
                   ),
                 ],
               ),
@@ -300,12 +320,18 @@ class _FeatureItem extends StatelessWidget {
 
   const _FeatureItem({required this.icon, required this.text});
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Colors.blue),
-      title: Text(text),
+      leading: Icon(icon, color: accentOrange), // Accent orange icon
+      title:
+          Text(text, style: const TextStyle(color: Colors.white)), // White text
     );
   }
 }

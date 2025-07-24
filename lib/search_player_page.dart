@@ -17,6 +17,11 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
   bool isLoading = true;
   String? errorMessage;
 
+  // Define custom colors based on the provided theme
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+
   @override
   void initState() {
     super.initState();
@@ -106,8 +111,13 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: primaryBlue, // Set scaffold background
       appBar: AppBar(
-        title: const Text('Search Players'),
+        title:
+            const Text('Search Players', style: TextStyle(color: Colors.white)),
+        backgroundColor: lightBlue, // Set app bar to lightBlue
+        foregroundColor: Colors.white, // Set foreground (text/icons) to white
+        elevation: 1,
       ),
       body: Column(
         children: [
@@ -116,18 +126,36 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: TextField(
               controller: _searchController,
+              style: const TextStyle(color: Colors.white), // Text input color
               decoration: InputDecoration(
                 hintText: 'Search player by name...',
-                prefixIcon: const Icon(Icons.search),
+                hintStyle: TextStyle(color: Colors.white70), // Hint text color
+                prefixIcon: const Icon(Icons.search,
+                    color: Colors.white70), // Icon color
+                filled: true,
+                fillColor: lightBlue.withOpacity(0.5), // Text field background
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none, // No border line
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                      color: accentOrange, width: 2), // Orange border on focus
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                      color: Colors.white30), // Light border when enabled
                 ),
               ),
             ),
           ),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        color: accentOrange)) // Loading indicator color
                 : errorMessage != null
                     ? Center(
                         child: Text(
@@ -136,33 +164,61 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
                         ),
                       )
                     : filteredPlayers.isEmpty
-                        ? const Center(child: Text('No players found'))
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.person_off,
+                                  size: 60,
+                                  color: Colors.white70), // Icon for no players
+                              SizedBox(height: 10),
+                              Text(
+                                'No players found.',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white70), // Text color
+                              ),
+                            ],
+                          )
                         : ListView.builder(
                             itemCount: filteredPlayers.length,
                             itemBuilder: (context, index) {
                               final player = filteredPlayers[index];
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage: player['photoUrl'] != null &&
-                                          player['photoUrl'].isNotEmpty
-                                      ? NetworkImage(player['photoUrl'])
-                                      : const AssetImage(
-                                              'assets/default_profile.png')
-                                          as ImageProvider,
+                              return Card(
+                                color: lightBlue.withOpacity(
+                                    0.7), // Card background with opacity
+                                elevation: 4,
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor:
+                                        primaryBlue, // Background for default image
+                                    backgroundImage: player['photoUrl'] !=
+                                                null &&
+                                            player['photoUrl'].isNotEmpty
+                                        ? NetworkImage(player['photoUrl'])
+                                        : const AssetImage(
+                                                'assets/default_profile.png') // Fallback image
+                                            as ImageProvider,
+                                  ),
+                                  title: Text(player['name'],
+                                      style: const TextStyle(
+                                          color: Colors.white)), // Text color
+                                  // Subtitle for sports is intentionally removed as per request
+                                  trailing: const Icon(Icons.arrow_forward_ios,
+                                      size: 16,
+                                      color: accentOrange), // Accent orange
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            PlayerDetailsPage(player: player),
+                                      ),
+                                    );
+                                  },
                                 ),
-                                title: Text(player['name']),
-                                // Subtitle for sports is intentionally removed as per request
-                                trailing: const Icon(Icons.arrow_forward_ios,
-                                    size: 16),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          PlayerDetailsPage(player: player),
-                                    ),
-                                  );
-                                },
                               );
                             },
                           ),
