@@ -12,9 +12,35 @@ class Tournament {
   final String name;
   final String? sportType; // Added sportType
   final String? startDate; // Added startDate for display in subtitle
+  final String? endDate;
+  final String? location;
+  final String? createdAt;
+  final String? updatedAt;
+  final int? numberOfTeams;
+  final int? teamWalletBalance;
+  final int? playersPerTeam;
+  final String? ownerName;
+  final int? basePrice;
+  final int? duration;
+  final int? matchDetail;
 
-  Tournament(
-      {required this.id, required this.name, this.sportType, this.startDate});
+  Tournament({
+    required this.id,
+    required this.name,
+    this.sportType,
+    this.startDate,
+    this.endDate,
+    this.location,
+    this.createdAt,
+    this.updatedAt,
+    this.numberOfTeams,
+    this.teamWalletBalance,
+    this.playersPerTeam,
+    this.ownerName,
+    this.basePrice,
+    this.duration,
+    this.matchDetail,
+  });
 
   factory Tournament.fromJson(Map<String, dynamic> json) {
     return Tournament(
@@ -22,6 +48,17 @@ class Tournament {
       name: json['name'],
       sportType: json['sportType'], // Parse sportType from JSON
       startDate: json['startDate'], // Parse startDate from JSON
+      endDate: json['endDate'],
+      location: json['location'],
+      createdAt: json['createdAt'],
+      updatedAt: json['updatedAt'],
+      numberOfTeams: json['numberOfTeams'],
+      teamWalletBalance: json['teamWalletBalance'],
+      playersPerTeam: json['playersPerTeam'],
+      ownerName: json['ownerName'],
+      basePrice: json['basePrice'],
+      duration: json['duration'],
+      matchDetail: json['matchDetail'],
     );
   }
 }
@@ -69,6 +106,7 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
               ''; // Use sportType from model
           final startDate = tournament.startDate?.toLowerCase() ??
               ''; // Use startDate from model
+          final ownerName = tournament.ownerName?.toLowerCase() ?? '';
           return name.contains(query) ||
               sport.contains(query) ||
               formatDate(tournament.startDate ??
@@ -212,15 +250,10 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => TournamentDetailPage(
-                                        tournament: {
-                                          'id': tournament.id,
-                                          'name': tournament.name,
-                                          'sportType': tournament.sportType,
-                                          'startDate': tournament.startDate,
-                                          // Add other fields if needed by AddPlayerPage
-                                        },
-                                        matchId:
-                                            0, // Placeholder, adjust as needed
+                                        tournament:
+                                            tournament, // Pass the entire tournament object
+                                        matchId: tournament.matchDetail ??
+                                            0, // Use matchDetail from tournament
                                       ),
                                     ),
                                   );

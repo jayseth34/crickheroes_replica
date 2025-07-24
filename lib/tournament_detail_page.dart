@@ -4,9 +4,27 @@ import 'match_detail_page.dart'; // Assuming this file exists for cricket
 import 'RacquetSportApp.dart'; // Import RacquetSportApp for badminton/pickleball navigation
 import 'players_page.dart';
 import 'add_tournament_page.dart'; // Make sure this exists
+import 'view_tournaments_page.dart'; // Import the Tournament class
+import 'package:http/http.dart' as http; // Import for HTTP requests
+import 'dart:convert'; // Import for JSON decoding
+
+// Define the Team class to match your API response
+class Team {
+  final int id;
+  final String teamName;
+
+  Team({required this.id, required this.teamName});
+
+  factory Team.fromJson(Map<String, dynamic> json) {
+    return Team(
+      id: json['id'] as int,
+      teamName: json['team_name'] as String,
+    );
+  }
+}
 
 class TournamentDetailPage extends StatelessWidget {
-  final Map<String, dynamic> tournament;
+  final Tournament tournament; // Changed type from Map<String, dynamic>
   final int matchId;
   final bool isAdmin; // You can pass this as a parameter too
 
@@ -29,7 +47,7 @@ class TournamentDetailPage extends StatelessWidget {
         backgroundColor: primaryBlue, // Set scaffold background
         appBar: AppBar(
           title: Text(
-            tournament['name'],
+            tournament.name, // Access directly
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -65,7 +83,7 @@ class TournamentDetailPage extends StatelessWidget {
 }
 
 class AboutTab extends StatelessWidget {
-  final Map<String, dynamic> tournament;
+  final Tournament tournament; // Changed type
   final bool isAdmin;
 
   const AboutTab({super.key, required this.tournament, required this.isAdmin});
@@ -80,16 +98,26 @@ class AboutTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        InfoTile(title: 'Tournament Name', value: tournament['name']),
+        InfoTile(
+            title: 'Tournament Name',
+            value: tournament.name), // Access directly
         // Ensure 'sportType' is fetched correctly
-        InfoTile(title: 'Sport Type', value: tournament['sportType'] ?? 'N/A'),
-        InfoTile(title: 'Start Date', value: tournament['startDate'] ?? 'N/A'),
-        InfoTile(title: 'End Date', value: tournament['endDate'] ?? 'N/A'),
-        InfoTile(title: 'Organizer', value: tournament['organizer'] ?? 'N/A'),
-        InfoTile(title: 'Location', value: tournament['location'] ?? 'N/A'),
+        InfoTile(
+            title: 'Sport Type',
+            value: tournament.sportType ?? 'N/A'), // Access directly
+        InfoTile(
+            title: 'Start Date',
+            value: tournament.startDate ?? 'N/A'), // Access directly
+        InfoTile(
+            title: 'Organizer',
+            value: tournament.ownerName ?? 'N/A'), // Access directly
+        InfoTile(
+            title: 'Location',
+            value: tournament.location ?? 'N/A'), // Access directly
         InfoTile(
           title: 'Description',
-          value: tournament['description'] ?? 'No description available.',
+          value: tournament.matchDetail?.toString() ??
+              'No description available.', // Assuming matchDetail is description for now
         ),
         const SizedBox(height: 20),
         if (isAdmin)
@@ -99,8 +127,24 @@ class AboutTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AddTournamentPage(
-                    tournamentId: tournament['id'],
-                    tournament: tournament,
+                    tournamentId: tournament.id, // Access directly
+                    tournament: {
+                      'id': tournament.id,
+                      'name': tournament.name,
+                      'startDate': tournament.startDate,
+                      'endDate': tournament.endDate,
+                      'location': tournament.location,
+                      'sportType': tournament.sportType,
+                      'createdAt': tournament.createdAt,
+                      'updatedAt': tournament.updatedAt,
+                      'numberOfTeams': tournament.numberOfTeams,
+                      'teamWalletBalance': tournament.teamWalletBalance,
+                      'playersPerTeam': tournament.playersPerTeam,
+                      'ownerName': tournament.ownerName,
+                      'basePrice': tournament.basePrice,
+                      'duration': tournament.duration,
+                      'matchDetail': tournament.matchDetail,
+                    }, // Pass as Map for AddTournamentPage
                     isUpdate: true,
                   ),
                 ),
@@ -152,7 +196,7 @@ class InfoTile extends StatelessWidget {
 }
 
 class FixturesTab extends StatefulWidget {
-  final Map<String, dynamic> tournament; // Added to receive tournament data
+  final Tournament tournament; // Changed type
 
   const FixturesTab(
       {super.key, required this.tournament}); // Updated constructor
@@ -213,10 +257,49 @@ class _FixturesTabState extends State<FixturesTab> {
   static const Color accentOrange = Color(0xFFF26C4F); // Orange
   static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
 
+  List<Team> _availableTeams = [];
+  Team? _selectedTeamA;
+  Team? _selectedTeamB;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTeamsForTournament();
+  }
+
+  Future<void> _fetchTeamsForTournament() async {
+    final url = Uri.parse(
+        "https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournament.id}");
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _availableTeams = data.map((t) => Team.fromJson(t)).toList();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text("Failed to load teams: Status ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching teams: ${e.toString()}")),
+      );
+    }
+  }
+
   void addFixture(Map<String, String> newFixture) {
     setState(() {
       fixtures.add(newFixture);
     });
+    // TODO: Implement API call to save the new fixture to your backend
+    // Example:
+    // final saveUrl = Uri.parse("YOUR_SAVE_FIXTURE_API_ENDPOINT");
+    // await http.post(saveUrl, body: json.encode(newFixture));
   }
 
   void deleteFixture(int index) {
@@ -226,152 +309,189 @@ class _FixturesTabState extends State<FixturesTab> {
   }
 
   Future<void> _showAddFixtureDialog() async {
-    final teamANameController = TextEditingController(); // New controller
-    final teamBNameController = TextEditingController(); // New controller
     final venueController = TextEditingController();
     DateTime? selectedDate;
+
+    // Reset selected teams when dialog opens
+    _selectedTeamA = null;
+    _selectedTeamB = null;
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: primaryBlue, // Dialog background
-          title:
-              const Text('Add Fixture', style: TextStyle(color: Colors.white)),
-          content: SingleChildScrollView(
-            // Added SingleChildScrollView for dialog content
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: teamANameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Team A Name',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: lightBlue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: accentOrange),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: teamBNameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Team B Name',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: lightBlue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: accentOrange),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: venueController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Venue',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: lightBlue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: accentOrange),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () async {
-                    final pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                      builder: (context, child) {
-                        return Theme(
-                          data: ThemeData.dark().copyWith(
-                            colorScheme: const ColorScheme.dark(
-                              primary: accentOrange, // Header background color
-                              onPrimary: Colors.white, // Header text color
-                              surface: lightBlue, // Body background color
-                              onSurface: Colors.white, // Body text color
-                            ),
-                            dialogBackgroundColor:
-                                primaryBlue, // Dialog background
-                          ),
-                          child: child!,
-                        );
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return AlertDialog(
+              backgroundColor: primaryBlue, // Dialog background
+              title: const Text('Add Fixture',
+                  style: TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<Team>(
+                      value: _selectedTeamA,
+                      hint: const Text('Select Team A',
+                          style: TextStyle(color: Colors.white70)),
+                      dropdownColor: lightBlue, // Dropdown background color
+                      style: const TextStyle(
+                          color: Colors.white), // Selected item text color
+                      decoration: InputDecoration(
+                        labelText: 'Team A',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: lightBlue),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: accentOrange),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: _availableTeams
+                          .where((team) => team != _selectedTeamB)
+                          .map((team) => DropdownMenuItem<Team>(
+                                value: team,
+                                child: Text(team.teamName),
+                              ))
+                          .toList(),
+                      onChanged: (Team? newValue) {
+                        setState(() {
+                          _selectedTeamA = newValue;
+                        });
                       },
-                    );
-                    if (pickedDate != null) {
-                      selectedDate = pickedDate;
-                      if (mounted) {
-                        setState(() {});
-                      }
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<Team>(
+                      value: _selectedTeamB,
+                      hint: const Text('Select Team B',
+                          style: TextStyle(color: Colors.white70)),
+                      dropdownColor: lightBlue, // Dropdown background color
+                      style: const TextStyle(
+                          color: Colors.white), // Selected item text color
+                      decoration: InputDecoration(
+                        labelText: 'Team B',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: lightBlue),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: accentOrange),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: _availableTeams
+                          .where((team) => team != _selectedTeamA)
+                          .map((team) => DropdownMenuItem<Team>(
+                                value: team,
+                                child: Text(team.teamName),
+                              ))
+                          .toList(),
+                      onChanged: (Team? newValue) {
+                        setState(() {
+                          _selectedTeamB = newValue;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: venueController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Venue',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: lightBlue),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: accentOrange),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                          builder: (context, child) {
+                            return Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary:
+                                      accentOrange, // Header background color
+                                  onPrimary: Colors.white, // Header text color
+                                  surface: lightBlue, // Body background color
+                                  onSurface: Colors.white, // Body text color
+                                ),
+                                dialogBackgroundColor:
+                                    primaryBlue, // Dialog background
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            selectedDate = pickedDate;
+                          });
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: lightBlue, // Button background
+                        foregroundColor: Colors.white, // Button text color
+                      ),
+                      child: Text(selectedDate == null
+                          ? "Select Date"
+                          : formatter.format(selectedDate!)),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel',
+                        style: TextStyle(color: Colors.white70))),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_selectedTeamA != null &&
+                        _selectedTeamB != null &&
+                        venueController.text.isNotEmpty &&
+                        selectedDate != null) {
+                      final newFixture = {
+                        'matchId': (fixtures.length + 1)
+                            .toString(), // Simple dummy ID generation
+                        'teamA': _selectedTeamA!.teamName,
+                        'teamB': _selectedTeamB!.teamName,
+                        'venue': venueController.text,
+                        'date': formatter.format(selectedDate!),
+                        'score': '', // Score can be updated later
+                      };
+                      addFixture(newFixture);
+                      Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Please select both teams, fill venue, and select a date.')),
+                      );
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: lightBlue, // Button background
-                    foregroundColor: Colors.white, // Button text color
+                    backgroundColor: accentOrange, // Save button background
+                    foregroundColor: Colors.white, // Save button text color
                   ),
-                  child: Text(selectedDate == null
-                      ? "Select Date"
-                      : formatter.format(selectedDate!)),
+                  child: const Text('Save'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel',
-                    style: TextStyle(color: Colors.white70))),
-            ElevatedButton(
-              onPressed: () {
-                if (teamANameController.text.isNotEmpty &&
-                    teamBNameController.text.isNotEmpty &&
-                    venueController.text.isNotEmpty &&
-                    selectedDate != null) {
-                  final newFixture = {
-                    'matchId': (fixtures.length + 1)
-                        .toString(), // Simple dummy ID generation
-                    'teamA': teamANameController.text,
-                    'teamB': teamBNameController.text,
-                    'venue': venueController.text,
-                    'date': formatter.format(selectedDate!),
-                    'score': '', // Score can be updated later
-                  };
-                  addFixture(newFixture);
-                  Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text('Please fill all fields and select a date.')),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentOrange, // Save button background
-                foregroundColor: Colors.white, // Save button text color
-              ),
-              child: const Text('Save'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -381,8 +501,8 @@ class _FixturesTabState extends State<FixturesTab> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     // Get the sport type from the tournament object passed to this widget
-    final String sportType =
-        widget.tournament['sportType']?.toLowerCase() ?? 'unknown';
+    final String sportType = widget.tournament.sportType?.toLowerCase() ??
+        'unknown'; // Access directly
 
     return Scaffold(
       backgroundColor: primaryBlue, // Set scaffold background
@@ -476,10 +596,9 @@ class _FixturesTabState extends State<FixturesTab> {
                           style: const TextStyle(color: Colors.white70)),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancel',
-                              style: TextStyle(color: Colors.white70)),
-                        ),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Cancel',
+                                style: TextStyle(color: Colors.white70))),
                         ElevatedButton(
                           onPressed: () {
                             deleteFixture(index);

@@ -115,9 +115,19 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
           paymentAmount =
               selectedTeamCount > 2 ? (selectedTeamCount - 2) * 100 : 0;
 
-          // Clear and add one empty admin controller because your response doesn't have admins
+          // Clear existing admin controllers and populate from API response
           _adminControllers.clear();
-          _adminControllers.add(TextEditingController());
+          if (tournamentData['admins'] != null &&
+              tournamentData['admins'] is List) {
+            for (var adminPhoneNumber in tournamentData['admins']) {
+              _adminControllers.add(
+                  TextEditingController(text: adminPhoneNumber.toString()));
+            }
+          }
+          // Ensure at least one controller exists if no admins are returned
+          if (_adminControllers.isEmpty) {
+            _adminControllers.add(TextEditingController());
+          }
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -238,7 +248,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     final contactInfo =
         "your-email@example.com or +91-XXXXXXXXXX"; // Replace with actual contact info
 
-    final message = "🎉 *Tournament Details* 🎉\n\n"
+    final message = "🎉 *Tournament Details* �\n\n"
         "We are excited to announce the upcoming *$tournamentName*, "
         "set to take place for *$duration days* at *$place*. "
         "This event promises thrilling matches, team spirit, and unforgettable moments!\n\n"
@@ -401,45 +411,71 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                           ),
                         ],
                       ),
-                      ..._adminControllers.map(
-                        (controller) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: TextFormField(
-                            controller: controller,
-                            keyboardType: TextInputType.phone,
-                            style: const TextStyle(
-                                color: Colors.white), // Input text color
-                            decoration: InputDecoration(
-                              hintText: 'Enter phone number',
-                              hintStyle: const TextStyle(
-                                  color: Colors.white70), // Hint text color
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12), // More rounded
-                                borderSide: BorderSide(
-                                    color: lightBlue.withOpacity(0.5)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                    color: accentOrange,
-                                    width: 2), // Accent orange
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide:
-                                    BorderSide(color: lightBlue), // lightBlue
-                              ),
-                              labelStyle: const TextStyle(
-                                  color: Colors.white70), // Label text color
-                              contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                  horizontal: 16), // Better padding
+                      ..._adminControllers.asMap().entries.map(
+                        (entry) {
+                          int index = entry.key;
+                          TextEditingController controller = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: controller,
+                                    keyboardType: TextInputType.phone,
+                                    style: const TextStyle(
+                                        color:
+                                            Colors.white), // Input text color
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter phone number',
+                                      hintStyle: const TextStyle(
+                                          color: Colors
+                                              .white70), // Hint text color
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                            12), // More rounded
+                                        borderSide: BorderSide(
+                                            color: lightBlue.withOpacity(0.5)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: accentOrange,
+                                            width: 2), // Accent orange
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                            color: lightBlue), // lightBlue
+                                      ),
+                                      labelStyle: const TextStyle(
+                                          color: Colors
+                                              .white70), // Label text color
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                              horizontal: 16), // Better padding
+                                    ),
+                                    validator: _validatePhoneNumber,
+                                  ),
+                                ),
+                                if (_adminControllers.length >
+                                    1) // Only show remove button if more than one
+                                  IconButton(
+                                    icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.red),
+                                    onPressed: () {
+                                      setState(() {
+                                        _adminControllers.removeAt(index);
+                                      });
+                                    },
+                                  ),
+                              ],
                             ),
-                            validator: _validatePhoneNumber,
-                          ),
-                        ),
-                      ),
+                          );
+                        },
+                      ).toList(),
                       DropdownButtonFormField<int>(
                         value: selectedTeamCount,
                         style: const TextStyle(
