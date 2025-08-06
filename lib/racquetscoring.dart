@@ -36,6 +36,9 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   int _servingTeam =
       0; // 1 for Team 1 serving, 2 for Team 2 serving, 0 for no active server
 
+  // Custom order for server rotation on service breaks (e.g., P1, P3, P2, P4)
+  List<String> _customServeOrder = [];
+
   final int _targetScore =
       21; // Target points to win a set (e.g., for badminton/pickleball)
   final int _winningLead = 2; // Required lead to win a set
@@ -50,6 +53,24 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   void initState() {
     super.initState();
     _allPlayers = [...widget.team1Players, ...widget.team2Players];
+
+    // Populate _customServeOrder based on the specified sequence:
+    // P1 (Team 1, Player 1) -> P3 (Team 2, Player 1) -> P2 (Team 1, Player 2) -> P4 (Team 2, Player 2)
+    if (widget.team1Players.isNotEmpty) {
+      _customServeOrder.add(widget.team1Players[0]);
+    }
+    if (widget.team2Players.isNotEmpty) {
+      _customServeOrder.add(widget.team2Players[0]);
+    }
+    if (widget.team1Players.length > 1) {
+      _customServeOrder.add(widget.team1Players[1]);
+    }
+    if (widget.team2Players.length > 1) {
+      _customServeOrder.add(widget.team2Players[1]);
+    }
+    // This setup assumes up to 2 players per team as per the example (P1, P2, P3, P4).
+    // If there are fewer players, the list will naturally be shorter and the modulo
+    // arithmetic will still work correctly.
 
     // Prompt for initial serve when the screen loads for a new match
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,14 +102,16 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               style: TextStyle(color: accentOrange)), // Title color
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _allPlayers
-                .map((playerName) => ListTile(
-                      title: Text(playerName,
-                          style: const TextStyle(
-                              color: Colors.white)), // Text color
-                      onTap: () => Navigator.of(dialogContext).pop(playerName),
-                    ))
-                .toList(),
+            children:
+                _customServeOrder // Offer only players from the custom serve order for initial selection
+                    .map((playerName) => ListTile(
+                          title: Text(playerName,
+                              style: const TextStyle(
+                                  color: Colors.white)), // Text color
+                          onTap: () =>
+                              Navigator.of(dialogContext).pop(playerName),
+                        ))
+                    .toList(),
           ),
         );
       },
@@ -96,6 +119,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
 
     if (initialServerName != null) {
       setState(() {
+        // Find the index of the initial server in the global _allPlayers list
         _currentServerIndex = _allPlayers.indexOf(initialServerName);
         _servingTeam = _getTeamIdForPlayer(initialServerName);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -146,37 +170,27 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
 
       // If Team 1 was NOT serving and they scored (service break)
       if (_servingTeam != 1) {
-        _currentServerIndex = (_currentServerIndex + 1) %
-            _allPlayers.length; // Rotate to next player globally
-        _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text('Serve changed to ${_allPlayers[_currentServerIndex]}')),
-        );
-      } else {
-        // Team 1 was serving and won the point. Now, the other player on Team 1 should serve.
-        List<String> currentServingTeamPlayers = widget.team1Players;
-        if (currentServingTeamPlayers.length > 1) {
-          // Only if there's another player to switch to
-          String currentServerName = _allPlayers[_currentServerIndex];
-          int currentServerTeamPlayerIndex =
-              currentServingTeamPlayers.indexOf(currentServerName);
+        // Find the current server's name from the global list
+        String currentServerName = _allPlayers[_currentServerIndex];
 
-          // Find the next player in the current serving team's list
-          int nextPlayerInTeamIndex = (currentServerTeamPlayerIndex + 1) %
-              currentServingTeamPlayers.length;
-          String nextServerName =
-              currentServingTeamPlayers[nextPlayerInTeamIndex];
+        // Find the index of the current server within the _customServeOrder
+        int currentServerCustomIndex =
+            _customServeOrder.indexOf(currentServerName);
 
-          _currentServerIndex =
-              _allPlayers.indexOf(nextServerName); // Update global index
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Serve changed to $nextServerName (Team 1)')),
-          );
-        }
+        // Calculate the index of the next server in the _customServeOrder
+        int nextServerCustomIndex =
+            (currentServerCustomIndex + 1) % _customServeOrder.length;
+
+        // Get the name of the next server from the _customServeOrder
+        String nextServerName = _customServeOrder[nextServerCustomIndex];
+
+        // Update the global server index (_currentServerIndex) and serving team (_servingTeam)
+        // based on the next player in the custom rotation.
+        _currentServerIndex = _allPlayers.indexOf(nextServerName);
+        _servingTeam = _getTeamIdForPlayer(nextServerName);
       }
+      // If Team 1 was serving and won the point, the serve does NOT change.
+      // The 'else' block for this case has been removed, so no server change occurs.
       _checkSetWin(); // Check for set win after each point
     });
   }
@@ -199,37 +213,27 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
 
       // If Team 2 was NOT serving and they scored (service break)
       if (_servingTeam != 2) {
-        _currentServerIndex = (_currentServerIndex + 1) %
-            _allPlayers.length; // Rotate to next player globally
-        _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text('Serve changed to ${_allPlayers[_currentServerIndex]}')),
-        );
-      } else {
-        // Team 2 was serving and won the point. Now, the other player on Team 2 should serve.
-        List<String> currentServingTeamPlayers = widget.team2Players;
-        if (currentServingTeamPlayers.length > 1) {
-          // Only if there's another player to switch to
-          String currentServerName = _allPlayers[_currentServerIndex];
-          int currentServerTeamPlayerIndex =
-              currentServingTeamPlayers.indexOf(currentServerName);
+        // Find the current server's name from the global list
+        String currentServerName = _allPlayers[_currentServerIndex];
 
-          // Find the next player in the current serving team's list
-          int nextPlayerInTeamIndex = (currentServerTeamPlayerIndex + 1) %
-              currentServingTeamPlayers.length;
-          String nextServerName =
-              currentServingTeamPlayers[nextPlayerInTeamIndex];
+        // Find the index of the current server within the _customServeOrder
+        int currentServerCustomIndex =
+            _customServeOrder.indexOf(currentServerName);
 
-          _currentServerIndex =
-              _allPlayers.indexOf(nextServerName); // Update global index
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Serve changed to $nextServerName (Team 2)')),
-          );
-        }
+        // Calculate the index of the next server in the _customServeOrder
+        int nextServerCustomIndex =
+            (currentServerCustomIndex + 1) % _customServeOrder.length;
+
+        // Get the name of the next server from the _customServeOrder
+        String nextServerName = _customServeOrder[nextServerCustomIndex];
+
+        // Update the global server index (_currentServerIndex) and serving team (_servingTeam)
+        // based on the next player in the custom rotation.
+        _currentServerIndex = _allPlayers.indexOf(nextServerName);
+        _servingTeam = _getTeamIdForPlayer(nextServerName);
       }
+      // If Team 2 was serving and won the point, the serve does NOT change.
+      // The 'else' block for this case has been removed, so no server change occurs.
       _checkSetWin(); // Check for set win after each point
     });
   }
@@ -262,11 +266,12 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       _team2Score = 0;
       _pointHistory.clear(); // Clear point history as a new set begins
 
-      // Determine next server: Winning team gets to serve the next set.
-      _servingTeam = winningTeam; // The winning team serves next set.
+      // Determine next server for the new set: Winning team gets to serve.
+      // We find the next player in the global rotation who is also on the winning team.
+      _servingTeam = winningTeam; // Set the serving team to the winning team.
 
-      // Find the next available player in the rotation from the winning team to serve
-      int startingSearchIndex = _currentServerIndex;
+      int startingSearchIndex =
+          _currentServerIndex; // Start search from the last server
       int nextServerIndex = -1;
       for (int i = 0; i < _allPlayers.length; i++) {
         int potentialServerIndex =
@@ -279,7 +284,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
           break;
         }
       }
-      // Fallback to first player of winning team if calculation fails or list is empty
+      // Fallback to the first player of the winning team if calculation fails or list is empty
       _currentServerIndex = nextServerIndex != -1 ? nextServerIndex : 0;
       // Ensure the serving team is correctly set based on the chosen player
       _servingTeam = _getTeamIdForPlayer(_allPlayers[_currentServerIndex]);
