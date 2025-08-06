@@ -44,10 +44,18 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   final int _winningLead = 2; // Required lead to win a set
   final int _targetSets = 3; // Best of 3 sets to win the match
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  // Define custom colors based on the provided theme, adjusted for a badminton court feel
+  static const Color primaryDark = Color(0xFF1A0F49); // Dark blue/purple
+  static const Color accentOrange = Color(0xFFF26C4F); // Orange accent
+  static const Color courtGreen = Color(0xFF4CAF50); // A green for the court
+  static const Color courtBlue = Color(0xFF3F51B5); // A blue for the court
+  static const Color lightGrey = Color(0xFFE0E0E0); // Light grey for lines/text
+  static const Color darkGrey =
+      Color(0xFF333333); // Dark grey for background elements
+  static const Color buttonGreen =
+      Color(0xFF6CC644); // Brighter green for buttons
+  static const Color buttonBlue = Color(0xFF4285F4); // Google blue for buttons
+  static const Color textYellow = Color(0xFFFFD700); // Gold/Yellow for accents
 
   @override
   void initState() {
@@ -97,7 +105,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: primaryBlue, // Dialog background
+          backgroundColor: primaryDark, // Dialog background
           title: const Text('Who serves first?',
               style: TextStyle(color: accentOrange)), // Title color
           content: Column(
@@ -107,7 +115,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     .map((playerName) => ListTile(
                           title: Text(playerName,
                               style: const TextStyle(
-                                  color: Colors.white)), // Text color
+                                  color: lightGrey)), // Text color
                           onTap: () =>
                               Navigator.of(dialogContext).pop(playerName),
                         ))
@@ -359,14 +367,14 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: primaryBlue, // Dialog background
+          backgroundColor: primaryDark, // Dialog background
           title: const Text('Set Winner!',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: accentOrange)), // Title color
           content: Text(
               '$winner won the set! Current sets: Team 1: $_team1Sets, Team 2: $_team2Sets',
-              style: const TextStyle(color: Colors.white70)), // Content color
+              style: const TextStyle(color: lightGrey)), // Content color
           actions: <Widget>[
             TextButton(
               child: const Text('OK',
@@ -402,14 +410,14 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: primaryBlue, // Dialog background
+          backgroundColor: primaryDark, // Dialog background
           title: const Text('Match Over!',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: accentOrange)), // Title color
           content: Text(
               'Congratulations! $winner won the match $_team1Sets - $_team2Sets.',
-              style: const TextStyle(color: Colors.white70)), // Content color
+              style: const TextStyle(color: lightGrey)), // Content color
           actions: <Widget>[
             TextButton(
               child: const Text('New Match',
@@ -427,7 +435,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 Navigator.pop(context); // Go back to the previous screen
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: lightBlue, // Blue button
+                backgroundColor: buttonBlue, // Blue button
                 foregroundColor: Colors.white,
               ),
             ),
@@ -444,14 +452,14 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: primaryBlue, // Dialog background
+          backgroundColor: primaryDark, // Dialog background
           title: const Text('End Match?',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: accentOrange)), // Title color
           content: const Text(
               'Are you sure you want to end the current match? All current scores and set history will be lost.',
-              style: TextStyle(color: Colors.white70)), // Content color
+              style: TextStyle(color: lightGrey)), // Content color
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel',
@@ -498,7 +506,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: primaryBlue, // Dark blue background for bottom sheet
+      backgroundColor: primaryDark, // Dark blue background for bottom sheet
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(15), // Reduced padding
@@ -510,7 +518,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                 style: TextStyle(
                   fontSize: 18, // Smaller font
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: lightGrey,
                 ),
               ),
               const SizedBox(height: 12), // Reduced space
@@ -519,7 +527,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     const Icon(Icons.undo, color: accentOrange), // Icon color
                 title: const Text('Undo Last Point',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 13)), // Smaller font
+                        color: lightGrey, fontSize: 13)), // Smaller font
                 onTap: () {
                   _undoLastPoint();
                   Navigator.pop(context); // Close bottom sheet
@@ -530,7 +538,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     color: accentOrange), // Icon color
                 title: const Text('Reset Current Set',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 13)), // Smaller font
+                        color: lightGrey, fontSize: 13)), // Smaller font
                 onTap: () {
                   _resetCurrentSetScores();
                   Navigator.pop(context); // Close bottom sheet
@@ -541,7 +549,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     const Icon(Icons.replay, color: accentOrange), // Icon color
                 title: const Text('Reset Entire Match',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 13)), // Smaller font
+                        color: lightGrey, fontSize: 13)), // Smaller font
                 onTap: () {
                   _resetMatch();
                   Navigator.pop(context); // Close bottom sheet
@@ -552,7 +560,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
                     color: Colors.red), // Icon color
                 title: const Text('End Match',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 13)), // Smaller font
+                        color: lightGrey, fontSize: 13)), // Smaller font
                 onTap: () {
                   _endMatchConfirm(); // This will handle navigation and closing bottom sheet
                 },
@@ -561,7 +569,7 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: lightBlue, // Button color
+                  backgroundColor: buttonBlue, // Button color
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
@@ -586,16 +594,14 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
     String team1DisplayName = 'Player 1';
     if (widget.team1Players.isNotEmpty) {
       team1DisplayName = widget.team1Players.length > 1
-          ? widget.team1Players
-              .join('\n') // Use newline for wrapping multiple players
+          ? widget.team1Players.join(' / ') // Use slash for doubles names
           : widget.team1Players[0];
     }
 
     String team2DisplayName = 'Player 2';
     if (widget.team2Players.isNotEmpty) {
       team2DisplayName = widget.team2Players.length > 1
-          ? widget.team2Players
-              .join('\n') // Use newline for wrapping multiple players
+          ? widget.team2Players.join(' / ') // Use slash for doubles names
           : widget.team2Players[0];
     }
 
@@ -608,348 +614,361 @@ class _RacquetScoringScreenState extends State<RacquetScoringScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('Match Scoring', style: TextStyle(color: Colors.white)),
+        title: const Text('Badminton Scorer',
+            style: TextStyle(color: lightGrey, fontWeight: FontWeight.bold)),
         elevation: 0,
-        backgroundColor: lightBlue, // AppBar background
+        backgroundColor: primaryDark, // AppBar background
         foregroundColor: Colors.white,
       ),
-      backgroundColor: primaryBlue, // Overall background
-      body: Column(
-        children: <Widget>[
-          // Main Score and Team Info Section
-          Expanded(
-            flex: 5, // Give more flex to the main scoring area
-            child: Row(
-              children: [
-                // Team 1 Section (Left Side)
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0), // Added padding
-                    color: primaryBlue, // Background color
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceEvenly, // Distribute space
-                      children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Team 1 Name
-                            Text(
-                              team1DisplayName,
-                              style: const TextStyle(
-                                fontSize: 16, // Smaller font for names
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2, // Limit to 2 lines
-                              overflow: TextOverflow.ellipsis, // Add ellipsis
-                            ),
-                            // Current Server for Team 1
-                            if (_servingTeam == 1)
-                              Text(
-                                '($currentServerName serving)', // Explicit serving text
-                                style: const TextStyle(
-                                    color: accentOrange, // Accent orange
-                                    fontSize: 11), // Smaller font
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                        ),
-                        // Team 1 Score
-                        Text(
-                          '$_team1Score',
-                          style: const TextStyle(
-                            fontSize: 90, // Further adjusted score font size
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        // Team 1 Sets (Optional: could be moved to center or a summary)
-                        Text(
-                          'Sets: $_team1Sets',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Central Control Column
-                SizedBox(
-                  width: MediaQuery.of(context).size.width *
-                      0.18, // Adjusted width for controls
-                  child: Column(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceEvenly, // Distribute space
-                    children: [
-                      // Reset Current Set Scores button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _resetCurrentSetScores,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: lightBlue, // Button color
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 2), // Smaller padding
-                            minimumSize: const Size(0, 30), // Min height
-                          ),
-                          child: const Icon(Icons.refresh, size: 16),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      // Serve Indicator Toggle Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _toggleServe,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: lightBlue, // Button color
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5)),
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            minimumSize: const Size(0, 30),
-                          ),
-                          child: const Icon(Icons.sports_tennis, size: 16),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      // More Options button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _showMoreOptions,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: lightBlue, // Button color
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5)),
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            minimumSize: const Size(0, 30),
-                          ),
-                          child: const Icon(Icons.more_horiz, size: 16),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Team 2 Section (Right Side)
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0), // Added padding
-                    color: primaryBlue, // Background color
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceEvenly, // Distribute space
-                      children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Team 2 Name
-                            Text(
-                              team2DisplayName,
-                              style: const TextStyle(
-                                fontSize: 16, // Smaller font for names
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2, // Limit to 2 lines
-                              overflow: TextOverflow.ellipsis, // Add ellipsis
-                            ),
-                            // Current Server for Team 2
-                            if (_servingTeam == 2)
-                              Text(
-                                '($currentServerName serving)', // Explicit serving text
-                                style: const TextStyle(
-                                    color: accentOrange, // Accent orange
-                                    fontSize: 11), // Smaller font
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                        ),
-                        // Team 2 Score
-                        Text(
-                          '$_team2Score',
-                          style: const TextStyle(
-                            fontSize: 90, // Further adjusted score font size
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        // Team 2 Sets (Optional: could be moved to center or a summary)
-                        Text(
-                          'Sets: $_team2Sets',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      backgroundColor: primaryDark, // Overall background
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              primaryDark,
+              courtBlue,
+              courtGreen,
+              primaryDark,
+            ],
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
-          // Point Increment Buttons (at the bottom)
-          Expanded(
-            flex: 1, // Give less flex to the buttons area
-            child: Container(
-              color: primaryBlue, // Background color
-              padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
+        ),
+        child: Column(
+          children: <Widget>[
+            // Top Section: Team Names, Sets, and Serve Indicator
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
+              color: darkGrey.withOpacity(
+                  0.4), // Semi-transparent dark background for top bar
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
+                  // Team 1 Info
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: _incrementTeam1Score,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: lightBlue, // Button color
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12), // Reduced padding
-                      ),
-                      child: Text(
-                        '${widget.team1Players.firstOrNull ?? 'Team 1'}\n+1',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold), // Smaller font
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Decrement buttons moved here for compactness
-                  Container(
-                    width: MediaQuery.of(context).size.width *
-                        0.18, // Match central column width
-                    alignment: Alignment.center,
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _decrementTeam1Score,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: lightBlue, // Button color
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(5)),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 0), // No horizontal padding
-                              minimumSize: const Size(30, 0), // Min size to fit
-                            ),
-                            child:
-                                const Text('-', style: TextStyle(fontSize: 16)),
+                        Text(
+                          team1DisplayName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: lightGrey,
+                            shadows: [
+                              Shadow(blurRadius: 1.0, color: Colors.black)
+                            ],
                           ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 5),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _decrementTeam2Score,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: lightBlue, // Button color
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(5)),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 0), // No horizontal padding
-                              minimumSize: const Size(30, 0),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.emoji_events,
+                                color: textYellow, size: 20), // Trophy icon
+                            const SizedBox(width: 5),
+                            Text(
+                              '$_team1Sets',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textYellow,
+                                shadows: [
+                                  Shadow(blurRadius: 1.0, color: Colors.black)
+                                ],
+                              ),
                             ),
-                            child:
-                                const Text('-', style: TextStyle(fontSize: 16)),
-                          ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  // Central Serve Indicator
+                  Container(
+                    width: 80, // Fixed width for the central icon
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.sports_handball, // Shuttlecock-like icon
+                          color: accentOrange,
+                          size: 35,
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          currentServerName,
+                          style: const TextStyle(
+                            color: accentOrange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Team 2 Info
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: _incrementTeam2Score,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: lightBlue, // Button color
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        '${widget.team2Players.firstOrNull ?? 'Team 2'}\n+1',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                    child: Column(
+                      children: [
+                        Text(
+                          team2DisplayName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: lightGrey,
+                            shadows: [
+                              Shadow(blurRadius: 1.0, color: Colors.black)
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.emoji_events,
+                                color: textYellow, size: 20), // Trophy icon
+                            const SizedBox(width: 5),
+                            Text(
+                              '$_team2Sets',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textYellow,
+                                shadows: [
+                                  Shadow(blurRadius: 1.0, color: Colors.black)
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          // Set History
-          Container(
-            color: primaryBlue, // Background color
-            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
-            child: Column(
-              children: [
-                if (_setScores.isNotEmpty)
-                  Column(
-                    children: [
-                      const Text(
-                        'Set History:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+            // Main Score Display and Controls
+            Expanded(
+              child: Row(
+                children: [
+                  // Team 1 Score and Buttons
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$_team1Score',
+                          style: TextStyle(
+                            fontSize: 120, // Even larger score font size
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 8.0,
+                                color: Colors.black.withOpacity(0.8),
+                                offset: const Offset(4.0, 4.0),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Wrap(
-                        spacing: 4.0,
-                        runSpacing: 1.0,
-                        alignment: WrapAlignment.center,
-                        children: _setScores.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          Map<String, int> set = entry.value;
-                          return Chip(
-                            label: Text(
-                              'S${index + 1}: ${set['team1']}-${set['team2']}',
-                              style: const TextStyle(
-                                  color: primaryBlue, // Text color
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10),
-                            ),
-                            backgroundColor: accentOrange
-                                .withOpacity(0.8), // Background color
-                            elevation: 0.5,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 0),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 6),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildScoreButton(
+                                icon: Icons.remove,
+                                onPressed: _decrementTeam1Score,
+                                color: accentOrange),
+                            const SizedBox(width: 15),
+                            _buildScoreButton(
+                                icon: Icons.add,
+                                onPressed: _incrementTeam1Score,
+                                color: buttonGreen),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Vertical separator (net-like)
+                  Container(
+                    width: 3,
+                    color: lightGrey.withOpacity(0.7),
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  // Team 2 Score and Buttons
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$_team2Score',
+                          style: TextStyle(
+                            fontSize: 120,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 8.0,
+                                color: Colors.black.withOpacity(0.8),
+                                offset: const Offset(4.0, 4.0),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildScoreButton(
+                                icon: Icons.remove,
+                                onPressed: _decrementTeam2Score,
+                                color: accentOrange),
+                            const SizedBox(width: 15),
+                            _buildScoreButton(
+                                icon: Icons.add,
+                                onPressed: _incrementTeam2Score,
+                                color: buttonGreen),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Bottom Section: Set History and More Options
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
+              color: darkGrey.withOpacity(
+                  0.4), // Semi-transparent dark background for bottom bar
+              child: Column(
+                children: [
+                  if (_setScores.isNotEmpty)
+                    Column(
+                      children: [
+                        const Text(
+                          'Set History:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: lightGrey,
+                            shadows: [
+                              Shadow(blurRadius: 1.0, color: Colors.black)
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8.0,
+                          runSpacing: 4.0,
+                          alignment: WrapAlignment.center,
+                          children: _setScores.asMap().entries.map((entry) {
+                            int index = entry.key;
+                            Map<String, int> set = entry.value;
+                            return Chip(
+                              label: Text(
+                                'S${index + 1}: ${set['team1']}-${set['team2']}',
+                                style: const TextStyle(
+                                    color: primaryDark,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13),
+                              ),
+                              backgroundColor: accentOrange.withOpacity(0.9),
+                              elevation: 3.0,
+                              shadowColor: Colors.black.withOpacity(0.4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 15),
+                      ],
+                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildControlButton(
+                          icon: Icons.refresh,
+                          label: 'Reset Set',
+                          onPressed: _resetCurrentSetScores),
+                      _buildControlButton(
+                          icon: Icons.swap_horiz,
+                          label: 'Toggle Serve',
+                          onPressed: _toggleServe),
+                      _buildControlButton(
+                          icon: Icons.menu,
+                          label: 'More Options',
+                          onPressed: _showMoreOptions),
                     ],
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  // Helper widget for score increment/decrement buttons
+  Widget _buildScoreButton({
+    required IconData icon, // Changed to IconData
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+        elevation: 6,
+        shadowColor: Colors.black.withOpacity(0.6),
+      ),
+      child: Icon(icon, size: 24), // Display icon instead of text
+    );
+  }
+
+  // Helper widget for control buttons
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      children: [
+        ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: buttonBlue, // Changed to buttonBlue
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.all(12),
+            elevation: 5,
+            shadowColor: Colors.black.withOpacity(0.5),
+          ),
+          child: Icon(icon, size: 24),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          style: const TextStyle(color: lightGrey, fontSize: 12),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,7 @@ import 'add_tournament_page.dart'; // Make sure this exists
 import 'view_tournaments_page.dart'; // Import the Tournament class
 import 'package:http/http.dart' as http; // Import for HTTP requests
 import 'dart:convert'; // Import for JSON decoding
+import 'FootballScoringScreen.dart';
 
 // Define the Team class to match your API response
 class Team {
@@ -422,7 +423,7 @@ class _FixturesTabState extends State<FixturesTab> {
                           builder: (context, child) {
                             return Theme(
                               data: ThemeData.dark().copyWith(
-                                colorScheme: const ColorScheme.dark(
+                                colorScheme: ColorScheme.dark(
                                   primary:
                                       accentOrange, // Header background color
                                   onPrimary: Colors.white, // Header text color
@@ -539,13 +540,52 @@ class _FixturesTabState extends State<FixturesTab> {
                   );
                 } else if (sportType == 'badminton' ||
                     sportType == 'pickleball' ||
-                    sportType == 'throwball' ||
-                    sportType == 'football') {
+                    sportType == 'throwball') {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) =>
                           const RacquetSportApp(), // Navigates to the root of your racquet sport app
+                    ),
+                  );
+                } else if (sportType == 'football') {
+                  // Create dummy player lists for football for demonstration
+                  List<String> team1Players = [
+                    '${match['teamA']} Player 1',
+                    '${match['teamA']} Player 2',
+                    '${match['teamA']} Player 3',
+                    '${match['teamA']} Player 4',
+                    '${match['teamA']} Player 5',
+                    '${match['teamA']} Player 6',
+                    '${match['teamA']} Player 7',
+                    '${match['teamA']} Player 8',
+                    '${match['teamA']} Player 9',
+                    '${match['teamA']} Player 10',
+                    '${match['teamA']} Player 11'
+                  ];
+                  List<String> team2Players = [
+                    '${match['teamB']} Player 1',
+                    '${match['teamB']} Player 2',
+                    '${match['teamB']} Player 3',
+                    '${match['teamB']} Player 4',
+                    '${match['teamB']} Player 5',
+                    '${match['teamB']} Player 6',
+                    '${match['teamB']} Player 7',
+                    '${match['teamB']} Player 8',
+                    '${match['teamB']} Player 9',
+                    '${match['teamB']} Player 10',
+                    '${match['teamB']} Player 11'
+                  ];
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FootballScoringScreen(
+                        team1Name: match['teamA']!,
+                        team2Name: match['teamB']!,
+                        team1Players: team1Players,
+                        team2Players: team2Players,
+                      ),
                     ),
                   );
                 } else {
