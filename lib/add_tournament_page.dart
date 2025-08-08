@@ -81,7 +81,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   // Function to fetch tournament details for update mode
   Future<void> _fetchTournamentDetails(int id) async {
     setState(() {
-      _loading = true;
+      _loading = true; // Show loading indicator
     });
 
     final url =
@@ -148,7 +148,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       Navigator.pop(context);
     } finally {
       setState(() {
-        _loading = false;
+        _loading = false; // Hide loading indicator
       });
     }
   }
@@ -248,7 +248,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     final contactInfo =
         "your-email@example.com or +91-XXXXXXXXXX"; // Replace with actual contact info
 
-    final message = "🎉 *Tournament Details* �\n\n"
+    final message = "🎉 *Tournament Details* \n\n"
         "We are excited to announce the upcoming *$tournamentName*, "
         "set to take place for *$duration days* at *$place*. "
         "This event promises thrilling matches, team spirit, and unforgettable moments!\n\n"
@@ -613,52 +613,70 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                     // Make submit button take more space
                     flex: 3,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          if (paymentAmount > 0) {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor:
-                                    primaryBlue, // Dialog background
-                                title: const Text('Payment Required',
-                                    style: TextStyle(color: Colors.white)),
-                                content: Text(
-                                    'You need to pay ₹$paymentAmount to proceed.',
-                                    style: TextStyle(color: Colors.white70)),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(ctx).pop();
-                                    },
-                                    child: const Text('Cancel',
-                                        style:
-                                            TextStyle(color: Colors.white70)),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      Navigator.of(ctx).pop();
-                                      _processPayment();
-                                    },
-                                    style: ElevatedButton.styleFrom(
+                      onPressed: _loading
+                          ? null
+                          : () {
+                              if (_formKey.currentState!.validate()) {
+                                if (paymentAmount > 0) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
                                       backgroundColor:
-                                          accentOrange, // Pay Now button background
-                                      foregroundColor: Colors
-                                          .white, // Pay Now button text color
+                                          primaryBlue, // Dialog background
+                                      title: const Text('Payment Required',
+                                          style:
+                                              TextStyle(color: Colors.white)),
+                                      content: Text(
+                                          'You need to pay ₹$paymentAmount to proceed.',
+                                          style:
+                                              TextStyle(color: Colors.white70)),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.of(ctx).pop();
+                                          },
+                                          child: const Text('Cancel',
+                                              style: TextStyle(
+                                                  color: Colors.white70)),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.of(ctx).pop();
+                                            _processPayment();
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                accentOrange, // Pay Now button background
+                                            foregroundColor: Colors
+                                                .white, // Pay Now button text color
+                                          ),
+                                          child: const Text('Pay Now'),
+                                        ),
+                                      ],
                                     ),
-                                    child: const Text('Pay Now'),
-                                  ),
-                                ],
+                                  );
+                                } else {
+                                  _submitTournament();
+                                }
+                              }
+                            },
+                      icon: _loading
+                          ? Container(
+                              width: 24,
+                              height: 24,
+                              padding: const EdgeInsets.all(2.0),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 3,
                               ),
-                            );
-                          } else {
-                            _submitTournament();
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.check, color: Colors.white),
+                            )
+                          : const Icon(Icons.check, color: Colors.white),
                       label: Text(
-                        widget.isUpdate ? 'Update Tournament' : 'Submit',
+                        _loading
+                            ? 'Processing...'
+                            : widget.isUpdate
+                                ? 'Update Tournament'
+                                : 'Submit',
                         style:
                             const TextStyle(fontSize: 16, color: Colors.white),
                       ),
@@ -679,20 +697,22 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                     flex: 1,
                     child: ElevatedButton(
                       // Use ElevatedButton for consistent style, but with just icon
-                      onPressed: () {
-                        // Validate the form before attempting to share details
-                        if (_formKey.currentState!.validate()) {
-                          _sendWhatsAppMessage();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'Please fill in all required fields before sharing.'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: _loading
+                          ? null
+                          : () {
+                              // Validate the form before attempting to share details
+                              if (_formKey.currentState!.validate()) {
+                                _sendWhatsAppMessage();
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Please fill in all required fields before sharing.'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.all(
                             14), // Square shape for icon button
@@ -774,7 +794,13 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
   // Placeholder function for payment processing
   void _processPayment() async {
+    setState(() {
+      _loading = true; // Show loading indicator during payment processing
+    });
     await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _loading = false; // Hide loading indicator after payment
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Payment Successful!'),
@@ -786,11 +812,18 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
 
   // Function to submit or update tournament details to the API
   Future<void> _submitTournament() async {
+    setState(() {
+      _loading = true; // Show loading indicator
+    });
+
     final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
 
     int parseOrZero(String text) => int.tryParse(text) ?? 0;
 
     final tournamentData = {
+      // The `id` field is conditionally added only when updating a tournament.
+      // If `isUpdate` is false, `id` will not be in the JSON payload,
+      // and the backend will treat this as a new tournament to be created.
       if (widget.isUpdate && widget.tournamentId != null)
         "id": widget.tournamentId,
       "name": _tournamentNameController.text,
@@ -822,7 +855,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
             backgroundColor: Colors.green,
           ),
         );
-        // Removed Navigator.pop(context) here
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -838,6 +870,10 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      setState(() {
+        _loading = false; // Hide loading indicator regardless of the outcome
+      });
     }
   }
 }

@@ -73,7 +73,7 @@ class TournamentDetailPage extends StatelessWidget {
           children: [
             AboutTab(tournament: tournament, isAdmin: isAdmin),
             FixturesTab(tournament: tournament),
-            const TeamsTab(),
+            TeamsTab(tournamentId: tournament.id),
             const PointsTableTab(),
             const StatsTab(), // New Stats Tab Content
           ],
@@ -544,8 +544,7 @@ class _FixturesTabState extends State<FixturesTab> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          const RacquetSportApp(), // Navigates to the root of your racquet sport app
+                      builder: (_) => const RacquetSportApp(),
                     ),
                   );
                 } else if (sportType == 'football') {
@@ -576,7 +575,6 @@ class _FixturesTabState extends State<FixturesTab> {
                     '${match['teamB']} Player 10',
                     '${match['teamB']} Player 11'
                   ];
-
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -672,51 +670,127 @@ class _FixturesTabState extends State<FixturesTab> {
 }
 
 class TeamsTab extends StatefulWidget {
-  const TeamsTab({super.key});
+  final int tournamentId;
+
+  const TeamsTab({super.key, required this.tournamentId});
 
   @override
   State<TeamsTab> createState() => _TeamsTabState();
 }
 
 class _TeamsTabState extends State<TeamsTab> {
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
 
-  Map<String, List<String>> teamPlayers = {
-    'Team A': ['Player A1', 'Player A2', 'Player A3'],
-    'Team B': ['Player B1', 'Player B2'],
-    'Team C': ['Player C1', 'Player C2', 'Player C3', 'Player C4'],
-  };
+  List<Team> _teams = [];
+  bool _isLoading = true;
+  String? _error;
 
-  void deleteTeam(String teamName) {
+  @override
+  void initState() {
+    super.initState();
+    _fetchTeams();
+  }
+
+  Future<void> _fetchTeams() async {
     setState(() {
-      teamPlayers.remove(teamName);
+      _isLoading = true;
+      _error = null;
     });
+
+    final url = Uri.parse(
+        "https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}");
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _teams = data.map((t) => Team.fromJson(t)).toList();
+        });
+      } else {
+        setState(() {
+          _error = "Failed to load teams: Status ${response.statusCode}";
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_error!)),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _error = "Error fetching teams: ${e.toString()}";
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_error!)),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // A simple function to delete a team by id. This would need to be implemented on the backend.
+  void _deleteTeam(int teamId) {
+    // This is a placeholder. You would call a DELETE API here.
+    // Example: await http.delete(Uri.parse("your_delete_api_url/$teamId"));
+    setState(() {
+      _teams.removeWhere((team) => team.id == teamId);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Team deleted (placeholder)'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: accentOrange));
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Text(
+          _error!,
+          style: const TextStyle(color: Colors.red, fontSize: 16),
+        ),
+      );
+    }
+
+    if (_teams.isEmpty) {
+      return const Center(
+        child: Text(
+          "No teams available for this tournament.",
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
-      body: ListView(
-        children: teamPlayers.entries.map((entry) {
+      backgroundColor: primaryBlue,
+      body: ListView.builder(
+        itemCount: _teams.length,
+        itemBuilder: (context, index) {
+          final team = _teams[index];
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             elevation: 4,
-            color: lightBlue.withOpacity(0.7), // Card background
+            color: lightBlue.withOpacity(0.7),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
-              leading:
-                  const Icon(Icons.groups, color: accentOrange), // Icon color
+              leading: const Icon(Icons.groups, color: accentOrange),
               title: Text(
-                entry.key,
+                team.teamName,
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Colors.white), // Title text color
+                    color: Colors.white),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -727,12 +801,12 @@ class _TeamsTabState extends State<TeamsTab> {
                       showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          backgroundColor: primaryBlue, // Dialog background
+                          backgroundColor: primaryBlue,
                           title: const Text('Delete Team',
                               style: TextStyle(color: Colors.white)),
                           content: Text(
-                              'Are you sure you want to delete ${entry.key}?',
-                              style: TextStyle(color: Colors.white70)),
+                              'Are you sure you want to delete ${team.teamName}?',
+                              style: const TextStyle(color: Colors.white70)),
                           actions: [
                             TextButton(
                                 onPressed: () => Navigator.of(ctx).pop(),
@@ -740,14 +814,12 @@ class _TeamsTabState extends State<TeamsTab> {
                                     style: TextStyle(color: Colors.white70))),
                             ElevatedButton(
                               onPressed: () {
-                                deleteTeam(entry.key);
+                                _deleteTeam(team.id);
                                 Navigator.of(ctx).pop();
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    accentOrange, // Delete button background
-                                foregroundColor:
-                                    Colors.white, // Delete button text color
+                                backgroundColor: accentOrange,
+                                foregroundColor: Colors.white,
                               ),
                               child: const Text('Delete'),
                             ),
@@ -758,12 +830,12 @@ class _TeamsTabState extends State<TeamsTab> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.arrow_forward_ios,
-                        size: 16, color: accentOrange), // Icon color
+                        color: Colors.white70, size: 16),
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => PlayersPage(teamName: entry.key),
+                          builder: (_) => PlayersPage(teamId: team.id),
                         ),
                       );
                     },
@@ -772,454 +844,39 @@ class _TeamsTabState extends State<TeamsTab> {
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
 }
 
+// Placeholder for the Points Table tab
 class PointsTableTab extends StatelessWidget {
   const PointsTableTab({super.key});
-
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
-
-  final List<Map<String, dynamic>> pointsData = const [
-    {
-      'team': 'Team A',
-      'played': 3,
-      'won': 3,
-      'lost': 0,
-      'nrr': '+1.25',
-      'points': 6
-    },
-    {
-      'team': 'Team B',
-      'played': 3,
-      'won': 2,
-      'lost': 1,
-      'nrr': '+0.67',
-      'points': 4
-    },
-    {
-      'team': 'Team C',
-      'played': 3,
-      'won': 0,
-      'lost': 3,
-      'nrr': '-1.10',
-      'points': 0
-    },
-  ];
+  static const Color primaryBlue = Color(0xFF1A0F49);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
-      body: Column(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [
-                lightBlue,
-                primaryBlue
-              ]), // Gradient using theme colors
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: const Center(
-              child: Text(
-                'Points Table',
-                style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          // Ensures the DataTable is horizontally scrollable
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing:
-                  60, // Increased spacing between columns for better look
-              horizontalMargin: 16, // Margin from the card edges
-              dataRowMinHeight: 40, // Minimum height for data rows
-              dataRowMaxHeight: 60, // Maximum height for data rows
-              headingRowHeight: 50, // Height for heading row
-              dividerThickness: 1.5, // Thicker dividers for better separation
-              decoration: BoxDecoration(
-                // Added border to the table
-                border: Border.all(color: Colors.grey.shade300, width: 1),
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(12)),
-              ),
-              headingRowColor: MaterialStateProperty.all(
-                  lightBlue.withOpacity(0.5)), // Header background
-              dataRowColor: MaterialStateProperty.all(Colors.white.withOpacity(
-                  0.9)), // Consistent white background for data rows
-              columns: pointsData[0]
-                  .keys
-                  .map((header) => DataColumn(
-                        // Dynamically create columns
-                        label: Text(
-                          header
-                              .toUpperCase(), // Convert to uppercase for headers
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Colors.white), // Header text color
-                        ),
-                      ))
-                  .toList(),
-              rows: pointsData.map((team) {
-                return DataRow(cells: [
-                  DataCell(Text(team['team'].toString(),
-                      style: const TextStyle(
-                          color: primaryBlue))), // Data cell text color
-                  DataCell(Text(team['played'].toString(),
-                      style: const TextStyle(color: primaryBlue))),
-                  DataCell(Text(team['won'].toString(),
-                      style: const TextStyle(color: primaryBlue))),
-                  DataCell(Text(team['lost'].toString(),
-                      style: const TextStyle(color: primaryBlue))),
-                  DataCell(Text(team['nrr'].toString(),
-                      style: const TextStyle(color: primaryBlue))),
-                  DataCell(Text(team['points'].toString(),
-                      style: const TextStyle(color: primaryBlue))),
-                ]);
-              }).toList(),
-            ),
-          ),
-          if (pointsData.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Text('No data available for Points Table.',
-                    style: TextStyle(color: Colors.white70)),
-              ),
-            ),
-        ],
+    return const Center(
+      child: Text(
+        'Points Table is coming soon!',
+        style: TextStyle(fontSize: 18, color: Colors.white70),
       ),
     );
   }
 }
 
-// New StatsTab Widget - now StatefulWidget
-class StatsTab extends StatefulWidget {
+// Placeholder for the Stats tab
+class StatsTab extends StatelessWidget {
   const StatsTab({super.key});
-
-  @override
-  State<StatsTab> createState() => _StatsTabState();
-}
-
-class _StatsTabState extends State<StatsTab> {
-  // Default selected category
-  String _selectedStatCategory = 'Most Runs';
-
-  // List of available stat categories for the dropdown
-  final List<String> _statCategories = [
-    'Most Runs',
-    'Most Fours',
-    'Most Sixes',
-    'Most Wickets',
-    'Best Economy',
-    'Best Bowlers',
-    'Most Points Scored', // Added for racquet sports
-  ];
-
-  // Mock data for various stats
-  final List<Map<String, dynamic>> mostRuns = const [
-    {'name': 'Player Runs A', 'runs': 750},
-    {'name': 'Player Runs B', 'runs': 680},
-    {'name': 'Player Runs C', 'runs': 620},
-  ];
-
-  final List<Map<String, dynamic>> bestBowlers = const [
-    {'name': 'Player X', 'wickets': 15, 'economy': 6.5},
-    {'name': 'Player Y', 'wickets': 12, 'economy': 7.0},
-    {'name': 'Player Z', 'wickets': 10, 'economy': 6.0},
-  ];
-
-  final List<Map<String, dynamic>> mostFours = const [
-    {'name': 'Player A', 'fours': 50},
-    {'name': 'Player B', 'fours': 45},
-    {'name': 'Player C', 'fours': 40},
-  ];
-
-  final List<Map<String, dynamic>> mostSixes = const [
-    {'name': 'Player D', 'sixes': 30},
-    {'name': 'Player E', 'sixes': 25},
-    {'name': 'Player F', 'sixes': 20},
-  ];
-
-  final List<Map<String, dynamic>> mostWickets = const [
-    {'name': 'Player G', 'wickets': 18},
-    {'name': 'Player H', 'wickets': 16},
-    {'name': 'Player I', 'wickets': 14},
-  ];
-
-  final List<Map<String, dynamic>> bestEconomy = const [
-    {'name': 'Player J', 'economy': 5.5},
-    {'name': 'Player K', 'economy': 5.8},
-    {'name': 'Player L', 'economy': 6.2},
-  ];
-
-  // Mock data for Most Points Scored
-  final List<Map<String, dynamic>> mostPointsScored = const [
-    {'name': 'Racquet Player 1', 'points': 250},
-    {'name': 'Racquet Player 2', 'points': 220},
-    {'name': 'Racquet Player 3', 'points': 190},
-  ];
-
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
-
-  // Helper method to get the data based on the selected category
-  List<Map<String, dynamic>> _getCurrentStatsData() {
-    switch (_selectedStatCategory) {
-      case 'Most Runs':
-        return mostRuns;
-      case 'Most Fours':
-        return mostFours;
-      case 'Most Sixes':
-        return mostSixes;
-      case 'Most Wickets':
-        return mostWickets;
-      case 'Best Economy':
-        return bestEconomy;
-      case 'Best Bowlers':
-        return bestBowlers;
-      case 'Most Points Scored':
-        return mostPointsScored;
-      default:
-        return [];
-    }
-  }
-
-  // Helper method to get column headers based on the selected category
-  List<String> _getCurrentColumnHeaders() {
-    switch (_selectedStatCategory) {
-      case 'Most Runs':
-        return ['Player', 'Runs'];
-      case 'Most Fours':
-        return ['Player', 'Fours'];
-      case 'Most Sixes':
-        return ['Player', 'Sixes'];
-      case 'Most Wickets':
-        return ['Player', 'Wickets'];
-      case 'Best Economy':
-        return ['Player', 'Economy'];
-      case 'Best Bowlers':
-        return ['Player', 'Wickets', 'Economy'];
-      case 'Most Points Scored':
-        return ['Player', 'Points'];
-      default:
-        return [];
-    }
-  }
-
-  // Helper method to build DataCells based on the selected category
-  List<DataCell> _getCurrentRowBuilder(Map<String, dynamic> data) {
-    switch (_selectedStatCategory) {
-      case 'Most Runs':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['runs'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Most Fours':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['fours'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Most Sixes':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['sixes'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Most Wickets':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['wickets'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Best Economy':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['economy'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Best Bowlers':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['wickets'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['economy'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      case 'Most Points Scored':
-        return [
-          DataCell(Text(data['name'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-          DataCell(Text(data['points'].toString(),
-              style: const TextStyle(color: primaryBlue))),
-        ];
-      default:
-        return [];
-    }
-  }
+  static const Color primaryBlue = Color(0xFF1A0F49);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Dropdown for selecting stats category
-            Card(
-              margin: const EdgeInsets.only(bottom: 20),
-              elevation: 4,
-              color: lightBlue.withOpacity(0.7), // Card background
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedStatCategory,
-                    icon: const Icon(Icons.arrow_drop_down,
-                        color: accentOrange), // Icon color
-                    iconSize: 24,
-                    elevation: 16,
-                    style: const TextStyle(
-                        color: Colors.orange, // Text color
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedStatCategory = newValue!;
-                      });
-                    },
-                    items: _statCategories
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ),
-
-            // Display the selected stats section
-            _buildStatsSection(
-              context,
-              _selectedStatCategory,
-              _getCurrentStatsData(),
-              _getCurrentColumnHeaders(),
-              _getCurrentRowBuilder,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsSection(
-      BuildContext context,
-      String title,
-      List<Map<String, dynamic>> data,
-      List<String> columnHeaders,
-      List<DataCell> Function(Map<String, dynamic>) rowBuilder) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 20),
-      elevation: 4,
-      color: lightBlue.withOpacity(0.7), // Card background
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                lightBlue,
-                primaryBlue
-              ]), // Gradient using theme colors
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            width: double.infinity,
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            // Ensure horizontal scrollability for tables
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing:
-                  60, // Increased spacing between columns for better look
-              horizontalMargin: 16, // Margin from the card edges
-              dataRowMinHeight: 40, // Minimum height for data rows
-              dataRowMaxHeight: 60, // Maximum height for data rows
-              headingRowHeight: 50, // Height for heading row
-              dividerThickness: 1.5, // Thicker dividers for better separation
-              decoration: BoxDecoration(
-                // Added border to the table
-                border: Border.all(color: Colors.grey.shade300, width: 1),
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(12)),
-              ),
-              headingRowColor: MaterialStateProperty.all(
-                  lightBlue.withOpacity(0.5)), // Header background
-              dataRowColor: MaterialStateProperty.all(Colors.white.withOpacity(
-                  0.9)), // Consistent white background for data rows
-              columns: columnHeaders
-                  .map((header) => DataColumn(
-                        label: Text(
-                          header,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Colors.white), // Header text color
-                        ),
-                      ))
-                  .toList(),
-              rows:
-                  data.map((item) => DataRow(cells: rowBuilder(item))).toList(),
-            ),
-          ),
-          if (data.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Text('No data available for $title.',
-                    style: TextStyle(color: Colors.white70)),
-              ),
-            ),
-        ],
+    return const Center(
+      child: Text(
+        'Stats are coming soon!',
+        style: TextStyle(fontSize: 18, color: Colors.white70),
       ),
     );
   }
