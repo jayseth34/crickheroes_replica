@@ -57,6 +57,8 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   final TextEditingController _basePriceController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
   final TextEditingController _matchDetailController = TextEditingController();
+  final TextEditingController _startDateController = TextEditingController();
+  final TextEditingController _endDateController = TextEditingController();
 
   bool _loading = false;
 
@@ -64,8 +66,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
   static const Color accentOrange = Color(0xFFF26C4F); // Orange
   static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
-
-  Map<String, dynamic>? tournamentData;
 
   @override
   void initState() {
@@ -91,7 +91,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final Map<String, dynamic> tournamentData = json.decode(response.body);
-        print(tournamentData);
         setState(() {
           _tournamentNameController.text = tournamentData['name'] ?? '';
           _placeController.text =
@@ -110,6 +109,12 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
               (tournamentData['matchDetail'] ?? 0).toString();
           selectedSport =
               (tournamentData['sportType'] ?? 'Cricket') ?? 'Cricket';
+          _startDateController.text = tournamentData['startDate'] != null
+              ? tournamentData['startDate'].toString().split('T')[0]
+              : '';
+          _endDateController.text = tournamentData['endDate'] != null
+              ? tournamentData['endDate'].toString().split('T')[0]
+              : '';
 
           // Update payment amount based on team count
           paymentAmount =
@@ -161,8 +166,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
         if (kIsWeb) {
           // For web, read bytes directly and use MemoryImage
           final bytes = await picked.readAsBytes();
-          debugPrint(
-              'Image bytes length for web: ${bytes.length}'); // Debug print
           if (bytes.isNotEmpty) {
             setState(() {
               _profileImageBytes = bytes;
@@ -190,7 +193,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
             _imagePickedFileName = picked.name;
           });
         }
-        print('Image picked: ${_imagePickedFileName}');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -205,7 +207,6 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
         _profileImage = null;
         _imagePickedFileName = null;
       });
-      debugPrint('Error during image picking: $e'); // Debug print for errors
     }
   }
 
@@ -283,6 +284,99 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _addTournament() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
+
+    final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
+
+    try {
+      // Use http.MultipartRequest for form-data with files
+      var request = http.MultipartRequest('POST', Uri.parse(url));
+
+      // Add text fields from your C# TournamentDto
+      request.fields['Name'] = _tournamentNameController.text;
+      request.fields['StartDate'] = _startDateController.text;
+      request.fields['EndDate'] = _endDateController.text;
+      request.fields['Location'] = _placeController.text;
+      request.fields['SportType'] = selectedSport;
+      request.fields['NumberOfTeams'] = selectedTeamCount.toString();
+      request.fields['TeamWalletBalance'] = _walletBalanceController.text;
+      request.fields['PlayersPerTeam'] = _playersPerTeamController.text;
+      request.fields['OwnerName'] = _ownerNameController.text;
+      request.fields['BasePrice'] = _basePriceController.text;
+      request.fields['Duration'] = _durationController.text;
+      request.fields['MatchDetail'] = _matchDetailController.text;
+      if (widget.isUpdate && widget.tournamentId != null) {
+        request.fields['id'] = widget.tournamentId.toString();
+      }
+
+      // Add admins as a list of strings
+      final admins = _adminControllers
+          .map((c) => c.text)
+          .where((s) => s.isNotEmpty)
+          .toList();
+      for (int i = 0; i < admins.length; i++) {
+        request.fields['Admins[$i]'] = admins[i];
+      }
+
+      // Add the image file
+      // NOTE: This logic ensures the image is correctly added as a multipart file
+      // using the field name 'ProfileImage' to match your C# endpoint.
+      if (_profileImageBytes != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'ProfileImage', // The name of the file field in your C# backend
+          _profileImageBytes!,
+          filename: _imagePickedFileName,
+        ));
+      } else if (_profileImage != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'ProfileImage', // The name of the file field in your C# backend
+          _profileImage!.path,
+          filename: _imagePickedFileName,
+        ));
+      }
+
+      // Send the request and handle the response
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.isUpdate
+                ? "Tournament Updated Successfully"
+                : "Tournament Added Successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final respBody = await response.stream.bytesToString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $respBody'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error occurred: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
@@ -527,206 +621,121 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                               ? '💰 ₹$paymentAmount required for $selectedTeamCount teams.'
                               : '✅ No payment needed for 2 teams.',
                           style: TextStyle(
-                              color: paymentAmount > 0
-                                  ? Colors.red.shade400 // Keep red for warning
-                                  : Colors
-                                      .green.shade400, // Keep green for success
-                              fontWeight: FontWeight.bold),
+                            color: paymentAmount > 0
+                                ? Colors.white
+                                : Colors.greenAccent,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _buildNumberField('Team Wallet Balance',
-                          controller: _walletBalanceController),
+                      _buildTextField('Team Wallet Balance',
+                          controller: _walletBalanceController,
+                          keyboardType: TextInputType.number),
                       const SizedBox(height: 12),
-                      _buildNumberField('Players per Team',
-                          controller: _playersPerTeamController),
+                      _buildTextField('Players Per Team',
+                          controller: _playersPerTeamController,
+                          keyboardType: TextInputType.number),
                       const SizedBox(height: 12),
                       _buildTextField('Owner Name',
                           controller: _ownerNameController),
                       const SizedBox(height: 12),
-                      _buildNumberField('Base Price of Player',
-                          controller: _basePriceController),
+                      _buildTextField('Player Base Price',
+                          controller: _basePriceController,
+                          keyboardType: TextInputType.number),
                       const SizedBox(height: 12),
-                      _buildNumberField('Event Duration (Days)',
-                          controller: _durationController),
+                      _buildTextField('Duration (in days)',
+                          controller: _durationController,
+                          keyboardType: TextInputType.number),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         value: selectedSport,
-                        style: const TextStyle(
-                            color: Colors.white), // Dropdown text color
-                        dropdownColor: lightBlue, // Dropdown background color
+                        style: const TextStyle(color: Colors.white),
+                        dropdownColor: lightBlue,
                         decoration: InputDecoration(
-                          labelText: 'Type of Sport',
-                          labelStyle: const TextStyle(
-                              color: Colors.white70), // Label text color
+                          labelText: 'Sport Type',
+                          labelStyle: const TextStyle(color: Colors.white70),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: lightBlue.withOpacity(0.5)),
+                            borderSide: BorderSide(color: lightBlue),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                                color: accentOrange, width: 2), // Accent orange
+                            borderSide:
+                                const BorderSide(color: accentOrange, width: 2),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: lightBlue), // lightBlue
+                            borderSide: BorderSide(color: lightBlue),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 16),
                         ),
-                        items: sports
-                            .map((sport) => DropdownMenuItem(
-                                  value: sport,
-                                  child: Text(sport,
-                                      style: const TextStyle(
-                                          color:
-                                              Colors.white)), // Item text color
-                                ))
-                            .toList(),
+                        items: sports.map((sport) {
+                          return DropdownMenuItem<String>(
+                            value: sport,
+                            child: Text(sport,
+                                style: const TextStyle(color: Colors.white)),
+                          );
+                        }).toList(),
                         onChanged: (value) {
                           setState(() {
-                            selectedSport = value ?? 'Cricket';
+                            selectedSport = value!;
                           });
                         },
                       ),
                       const SizedBox(height: 12),
-                      _buildNumberField(
-                          selectedSport == 'Cricket'
-                              ? 'Overs per Match'
-                              : selectedSport == 'Football'
-                                  ? 'Halves per Match'
-                                  : 'Sets per Match',
+                      _buildTextField('Match Details',
                           controller: _matchDetailController),
+                      const SizedBox(height: 12),
+                      _buildDateTextField('Start Date', _startDateController),
+                      const SizedBox(height: 12),
+                      _buildDateTextField('End Date', _endDateController),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceEvenly, // Distribute space
-                children: [
-                  Expanded(
-                    // Make submit button take more space
-                    flex: 3,
-                    child: ElevatedButton.icon(
-                      onPressed: _loading
-                          ? null
-                          : () {
-                              if (_formKey.currentState!.validate()) {
-                                if (paymentAmount > 0) {
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      backgroundColor:
-                                          primaryBlue, // Dialog background
-                                      title: const Text('Payment Required',
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                      content: Text(
-                                          'You need to pay ₹$paymentAmount to proceed.',
-                                          style:
-                                              TextStyle(color: Colors.white70)),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.of(ctx).pop();
-                                          },
-                                          child: const Text('Cancel',
-                                              style: TextStyle(
-                                                  color: Colors.white70)),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            Navigator.of(ctx).pop();
-                                            _processPayment();
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                accentOrange, // Pay Now button background
-                                            foregroundColor: Colors
-                                                .white, // Pay Now button text color
-                                          ),
-                                          child: const Text('Pay Now'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                } else {
-                                  _submitTournament();
-                                }
-                              }
-                            },
-                      icon: _loading
-                          ? Container(
-                              width: 24,
-                              height: 24,
-                              padding: const EdgeInsets.all(2.0),
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 3,
-                              ),
-                            )
-                          : const Icon(Icons.check, color: Colors.white),
-                      label: Text(
-                        _loading
-                            ? 'Processing...'
-                            : widget.isUpdate
-                                ? 'Update Tournament'
-                                : 'Submit',
-                        style:
-                            const TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14), // Reduced padding
-                        backgroundColor: accentOrange, // Accent orange
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 4, // Add elevation
-                      ),
-                    ),
+              ElevatedButton(
+                onPressed: _addTournament,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentOrange,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 16), // Space between buttons
-                  Expanded(
-                    // Make share button smaller
-                    flex: 1,
-                    child: ElevatedButton(
-                      // Use ElevatedButton for consistent style, but with just icon
-                      onPressed: _loading
-                          ? null
-                          : () {
-                              // Validate the form before attempting to share details
-                              if (_formKey.currentState!.validate()) {
-                                _sendWhatsAppMessage();
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        'Please fill in all required fields before sharing.'),
-                                    backgroundColor: Colors.orange,
-                                  ),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.all(
-                            14), // Square shape for icon button
-                        backgroundColor: lightBlue, // lightBlue for share
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 4,
+                ),
+                child: _loading
+                    ? CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        widget.isUpdate
+                            ? 'Update Tournament'
+                            : 'Add Tournament',
+                        style: const TextStyle(fontSize: 18),
                       ),
-                      child: const Icon(Icons.share,
-                          color: Colors.white, size: 24), // Only icon
-                    ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _sendWhatsAppMessage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.share, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Share on WhatsApp',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -735,145 +744,78 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
     );
   }
 
-  // Helper widget for building text input fields
-  Widget _buildTextField(String label, {TextEditingController? controller}) {
+  Widget _buildTextField(String label,
+      {TextEditingController? controller,
+      TextInputType keyboardType = TextInputType.text}) {
     return TextFormField(
       controller: controller,
-      style: const TextStyle(color: Colors.white), // Input text color
+      keyboardType: keyboardType,
+      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70), // Label text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), // Slightly more rounded
-          borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: accentOrange, width: 2), // Accent orange
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: lightBlue), // lightBlue
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-            vertical: 14, horizontal: 16), // Better padding
-      ),
-      validator: (value) => value!.isEmpty ? 'Required' : null,
-    );
-  }
-
-  // Helper widget for building number input fields
-  Widget _buildNumberField(String label, {TextEditingController? controller}) {
-    return TextFormField(
-      keyboardType: TextInputType.number,
-      controller: controller,
-      style: const TextStyle(color: Colors.white), // Input text color
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70), // Label text color
+        labelStyle: const TextStyle(color: Colors.white70),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: accentOrange, width: 2), // Accent orange
+          borderSide: const BorderSide(color: accentOrange, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: lightBlue), // lightBlue
+          borderSide: BorderSide(color: lightBlue),
         ),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
-      validator: (value) => value!.isEmpty ? 'Required' : null,
     );
   }
 
-  // Placeholder function for payment processing
-  void _processPayment() async {
-    setState(() {
-      _loading = true; // Show loading indicator during payment processing
-    });
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() {
-      _loading = false; // Hide loading indicator after payment
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Payment Successful!'),
-        backgroundColor: Colors.green,
+  Widget _buildDateTextField(String label, TextEditingController controller) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      onTap: () async {
+        final DateTime? pickedDate = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime.now(),
+          lastDate: DateTime(2101),
+        );
+        if (pickedDate != null) {
+          setState(() {
+            controller.text = pickedDate.toString().split(' ')[0];
+          });
+        }
+      },
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: accentOrange, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightBlue),
+        ),
+        suffixIcon: const Icon(Icons.calendar_today, color: Colors.white70),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       ),
     );
-    _submitTournament();
   }
 
-  // Function to submit or update tournament details to the API
-  Future<void> _submitTournament() async {
-    setState(() {
-      _loading = true; // Show loading indicator
-    });
-
-    final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
-
-    int parseOrZero(String text) => int.tryParse(text) ?? 0;
-
-    final tournamentData = {
-      // The `id` field is conditionally added only when updating a tournament.
-      // If `isUpdate` is false, `id` will not be in the JSON payload,
-      // and the backend will treat this as a new tournament to be created.
-      if (widget.isUpdate && widget.tournamentId != null)
-        "id": widget.tournamentId,
-      "name": _tournamentNameController.text,
-      "location": _placeController.text,
-      "admins": _adminControllers.map((e) => e.text).toList(),
-      "numberOfTeams": selectedTeamCount,
-      "teamWalletBalance": parseOrZero(_walletBalanceController.text),
-      "playersPerTeam": parseOrZero(_playersPerTeamController.text),
-      "ownerName": _ownerNameController.text,
-      "basePrice": parseOrZero(_basePriceController.text),
-      "duration": parseOrZero(_durationController.text),
-      "sportType": selectedSport,
-      "matchDetail": parseOrZero(_matchDetailController.text),
-    };
-
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(tournamentData),
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.isUpdate
-                ? "Tournament Updated Successfully"
-                : "Tournament Added Successfully"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: ${response.body}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error occurred: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _loading = false; // Hide loading indicator regardless of the outcome
-      });
+  int parseOrZero(String? value) {
+    if (value == null || value.isEmpty) {
+      return 0;
     }
+    return int.tryParse(value) ?? 0;
   }
 }
