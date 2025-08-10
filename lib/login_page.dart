@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'otp_page.dart';
 import 'auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -47,6 +48,11 @@ class _LoginPageState extends State<LoginPage> {
   void sendOtp() async {
     if (_formKey.currentState!.validate()) {
       final phone = phoneController.text;
+
+      // Save the mobile number to shared preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('mobileNumber', phone);
+
       final success = true; // Replace with _authService.sendOtp(phone)
       if (success) {
         Navigator.push(

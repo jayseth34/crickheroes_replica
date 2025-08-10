@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data'; // Import for Uint8List
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
 
 class AddPlayerPage extends StatefulWidget {
   final int tournamentId;
@@ -30,6 +30,8 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   final TextEditingController villageController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
+  final TextEditingController mobileNumberController =
+      TextEditingController(); // New controller for mobile number
 
   String? selectedGender;
   String? selectedHandedness;
@@ -48,7 +50,6 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   // This list will hold the roles currently displayed in the dropdown
   List<String> currentRoles = [];
 
-  // Removed _selectedImage and _imageFileName as image picker is removed
   String? _base64Image; // To store the base64 string of the profile image
 
   // Define custom colors based on the provided theme
@@ -61,13 +62,32 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     super.initState();
     // Use the sportType from the full tournament object
     _updateRolesForSport(widget.tournament['sportType'] ?? '');
+    _loadMobileNumber(); // Load the mobile number on startup
 
     // Initialize a dummy base64 image for demonstration purposes
-    // In a real application, you would fetch the existing profile image or
-    // ensure it's set before this page is accessed if it's mandatory.
-    // For this demonstration, we'll assume a dummy image exists if not explicitly provided.
     _base64Image =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="; // A 1x1 transparent PNG base64
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    villageController.dispose();
+    ageController.dispose();
+    addressController.dispose();
+    mobileNumberController.dispose(); // Dispose the new controller
+    super.dispose();
+  }
+
+  // Function to load the mobile number from shared preferences
+  void _loadMobileNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedMobileNumber = prefs.getString('mobileNumber');
+    if (storedMobileNumber != null) {
+      setState(() {
+        mobileNumberController.text = storedMobileNumber;
+      });
+    }
   }
 
   // Function to update roles based on the sport name
@@ -95,10 +115,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     });
   }
 
-  // Removed pickImage method
-
   Future<void> savePlayer() async {
-    // Check if a profile image is present
     if (_base64Image == null || _base64Image!.isEmpty) {
       showDialog(
         context: context,
@@ -121,59 +138,46 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
       return; // Stop execution if no image
     }
 
-    // Define the API endpoint URL
     final url =
         Uri.parse("https://sportsdecor.somee.com/api/Player/SavePlayer");
 
-    // Create a MultipartRequest for sending form data, including files
     var request = http.MultipartRequest('POST', url);
 
-    // Add text fields to the request. The field names must match the properties in your C# PlayerDto.
     request.fields['TournamentId'] = widget.tournamentId.toString();
     request.fields['Name'] = nameController.text.trim();
     request.fields['Village'] = villageController.text.trim();
-    // Convert age to string, handling potential parsing errors
     request.fields['Age'] =
         (int.tryParse(ageController.text.trim()) ?? 0).toString();
     request.fields['Address'] = addressController.text.trim();
-    // Provide default empty strings if dropdown values are null to avoid issues with non-nullable C# properties
     request.fields['Gender'] = selectedGender ?? '';
     request.fields['Handedness'] = selectedHandedness ?? '';
-    request.fields['Role'] = selectedRole ??
-        ''; // Send the selected role (will be '' for racquet sports)
+    request.fields['Role'] = selectedRole ?? '';
+    request.fields['MobNo'] =
+        mobileNumberController.text; // Use the new controller's value
 
-    // Add the image file to the request if one has been selected
-    // Since image picker is removed, we assume _base64Image is pre-populated or handled elsewhere
     if (_base64Image != null && _base64Image!.isNotEmpty) {
       Uint8List imageBytes = base64Decode(_base64Image!);
       request.files.add(http.MultipartFile.fromBytes(
-        'ProfileImage', // This key must exactly match the 'ProfileImage' property name in your C# PlayerDto
+        'ProfileImage',
         imageBytes,
-        filename: 'profile_image.png', // Generic filename since no picker
+        filename: 'profile_image.png',
       ));
     }
 
     try {
-      // Send the request and await the streamed response
       final streamedResponse = await request.send();
-      // Convert the streamed response to a regular HTTP response
       final response = await http.Response.fromStream(streamedResponse);
 
-      // Check if the request was successful (status code 200 OK)
       if (response.statusCode == 200) {
-        // Parse the JSON response body
         final responseData = jsonDecode(response.body);
-        // Check the 'success' flag from the API response
         if (responseData['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text(
                     responseData['message'] ?? "Player added successfully")),
           );
-          // Navigate back after successful player addition
           Navigator.pop(context);
         } else {
-          // Show error message from API if available, otherwise a generic one
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content:
@@ -181,21 +185,17 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
           );
         }
       } else {
-        // Handle non-200 status codes (e.g., server errors, validation errors)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
                   "Failed to add player. Status Code: ${response.statusCode}")),
         );
-        // Print the response body for debugging purposes
         print("Response body: ${response.body}");
       }
     } catch (e) {
-      // Catch any exceptions during the API call (e.g., network errors)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: ${e.toString()}")),
       );
-      // Print the error for debugging
       print("Error during API call: ${e.toString()}");
     }
   }
@@ -225,7 +225,6 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              // Removed GestureDetector for image picking
               CircleAvatar(
                 radius: 50,
                 backgroundColor:
@@ -234,98 +233,92 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                     _base64Image != null && _base64Image!.isNotEmpty
                         ? MemoryImage(base64Decode(_base64Image!))
                         : null,
-                child: (_base64Image == null || _base64Image!.isEmpty)
+                child: _base64Image == null || _base64Image!.isEmpty
                     ? Icon(Icons.person,
-                        size: 40, color: accentOrange) // Generic person icon
+                        size: 50, color: Colors.white.withOpacity(0.8))
                     : null,
               ),
-              const SizedBox(height: 10),
-              const Text("Profile Image (Required)",
-                  style: TextStyle(color: Colors.white)), // Text color
-              const SizedBox(height: 20),
-              Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                elevation: 3,
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildTextField('Player Name',
-                          controller: nameController, isRequired: true),
-                      const SizedBox(height: 16),
-                      _buildTextField('Village', controller: villageController),
-                      const SizedBox(height: 16),
-                      _buildTextField('Age',
-                          controller: ageController, isNumber: true),
-                      const SizedBox(height: 16),
-                      _buildTextField('Address', controller: addressController),
-                      const SizedBox(height: 20),
-                      _buildDropdown(
-                        label: "Select Gender",
-                        value: selectedGender,
-                        options: genders,
-                        onChanged: (val) =>
-                            setState(() => selectedGender = val),
-                        isRequired: true, // Gender is always required
-                      ),
-                      const SizedBox(height: 16),
-                      _buildDropdown(
-                        label: "Select Handedness",
-                        value: selectedHandedness,
-                        options: handednessOptions,
-                        onChanged: (val) =>
-                            setState(() => selectedHandedness = val),
-                        isRequired: true, // Handedness is always required
-                      ),
-                      const SizedBox(height: 16),
-                      // Conditionally display the role dropdown
-                      if (currentRoles.isNotEmpty)
-                        _buildDropdown(
-                          label: "Select Role",
-                          value: selectedRole,
-                          options: currentRoles, // Use the dynamic roles list
-                          onChanged: (val) =>
-                              setState(() => selectedRole = val),
-                          isRequired: true, // Role is required if visible
-                        ),
-                      if (currentRoles.isNotEmpty) const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Validate the form before attempting to save the player
-                  final isValid = _formKey.currentState!.validate();
-                  print('Form validation result: $isValid'); // Debug print
-                  if (isValid) {
-                    savePlayer(); // This will now handle the image check
-                  } else {
-                    // Show a SnackBar if validation fails
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("Please fill in all required fields."),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+              const SizedBox(height: 24),
+              _buildTextField(nameController, 'Player Name'),
+              const SizedBox(height: 16),
+              // Mobile Number Input Field
+              _buildTextField(
+                mobileNumberController,
+                'Mobile Number',
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Required';
+                  } else if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                    return 'Enter a valid 10-digit number';
                   }
+                  return null;
                 },
-                icon: const Icon(Icons.check, color: Colors.white),
-                label:
-                    const Text('Submit', style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentOrange, // Accent orange
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _buildDropdownField<String>(
+                label: 'Gender',
+                value: selectedGender,
+                options: genders,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    selectedGender = newValue;
+                  });
+                },
+                isRequired: true,
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(villageController, 'Village'),
+              const SizedBox(height: 16),
+              _buildTextField(ageController, 'Age',
+                  keyboardType: TextInputType.number),
+              const SizedBox(height: 16),
+              _buildTextField(addressController, 'Address'),
+              const SizedBox(height: 16),
+              // Display role dropdown only if there are roles for the sport
+              if (currentRoles.isNotEmpty)
+                _buildDropdownField<String>(
+                  label: 'Role',
+                  value: selectedRole,
+                  options: currentRoles,
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      selectedRole = newValue;
+                    });
+                  },
+                  isRequired: false, // Role is not required
+                ),
+              if (currentRoles.isNotEmpty) const SizedBox(height: 16),
+              _buildDropdownField<String>(
+                label: 'Handedness',
+                value: selectedHandedness,
+                options: handednessOptions,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    selectedHandedness = newValue;
+                  });
+                },
+                isRequired: true,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      savePlayer();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentOrange, // Button color
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  child: const Text('Save Player',
+                      style: TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -335,20 +328,18 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     );
   }
 
-  // Helper widget to build a TextFormField
-  Widget _buildTextField(String label,
-      {required TextEditingController controller,
-      bool isRequired = false,
-      bool isNumber = false}) {
+  // Helper method for a consistent TextFormField design
+  Widget _buildTextField(TextEditingController controller, String label,
+      {TextInputType keyboardType = TextInputType.text,
+      String? Function(String?)? validator}) {
     return TextFormField(
       controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white), // Input text color
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.white70), // Label text color
+            fontWeight: FontWeight.w500, color: Colors.white70), // Label color
         filled: true,
         fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -362,22 +353,26 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
           borderRadius: BorderRadius.circular(12),
         ),
       ),
-      validator: isRequired
-          ? (value) => value == null || value.trim().isEmpty ? 'Required' : null
-          : null,
+      validator: validator ??
+          (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Required';
+            }
+            return null;
+          },
     );
   }
 
-  // Helper widget to build a DropdownButtonFormField
-  Widget _buildDropdown({
+  // Helper method for a consistent DropdownButtonFormField design
+  Widget _buildDropdownField<T>({
     required String label,
-    required String? value,
-    required List<String> options,
-    required void Function(String?) onChanged,
-    bool isRequired = true, // Added isRequired parameter, default to true
+    T? value,
+    required List<T> options,
+    required void Function(T?) onChanged,
+    required bool isRequired,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      value: value as String?,
       style: const TextStyle(color: Colors.white), // Dropdown text color
       dropdownColor: lightBlue, // Dropdown background color
       decoration: InputDecoration(
@@ -400,12 +395,12 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
       ),
       items: options
           .map((opt) => DropdownMenuItem(
-              value: opt,
-              child: Text(opt,
+              value: opt.toString(),
+              child: Text(opt.toString(),
                   style:
                       const TextStyle(color: Colors.white)))) // Item text color
           .toList(),
-      onChanged: onChanged,
+      onChanged: onChanged as void Function(String?)?,
       // Only apply validator if isRequired is true and there are options to select from
       validator: isRequired && options.isNotEmpty
           ? (val) => val == null || val.trim().isEmpty ? 'Required' : null

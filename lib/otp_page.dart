@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
 
 class OtpPage extends StatefulWidget {
   final String phone;
@@ -14,6 +15,8 @@ class _OtpPageState extends State<OtpPage> {
   final TextEditingController otpController = TextEditingController();
 
   bool isValid = false;
+  String _storedMobileNumber =
+      ''; // New state variable to hold the retrieved number
 
   // Define custom colors based on the provided theme
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
@@ -24,6 +27,7 @@ class _OtpPageState extends State<OtpPage> {
   void initState() {
     super.initState();
     otpController.addListener(_validateInput);
+    _loadStoredMobileNumber(); // Load the mobile number from storage
   }
 
   @override
@@ -31,6 +35,17 @@ class _OtpPageState extends State<OtpPage> {
     otpController.removeListener(_validateInput);
     otpController.dispose();
     super.dispose();
+  }
+
+  // A new function to load the mobile number from shared preferences
+  void _loadStoredMobileNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedNumber = prefs.getString('mobileNumber');
+    if (storedNumber != null) {
+      setState(() {
+        _storedMobileNumber = storedNumber;
+      });
+    }
   }
 
   void _validateInput() {
@@ -82,8 +97,9 @@ class _OtpPageState extends State<OtpPage> {
                           color:
                               accentOrange), // Set icon color to accentOrange
                       const SizedBox(height: 16),
+                      // Display the stored mobile number if available
                       Text(
-                        "OTP sent to ${widget.phone}",
+                        "OTP sent to ${_storedMobileNumber.isNotEmpty ? _storedMobileNumber : widget.phone}",
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
