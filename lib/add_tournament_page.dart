@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart'; // Import for launching URLs
 import 'package:flutter/foundation.dart' show kIsWeb; // Import for kIsWeb
 import 'dart:typed_data'; // Import for Uint8List
 import 'package:flutter/foundation.dart'; // Import for debugPrint
+import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 
 class AddTournamentPage extends StatefulWidget {
   final bool isUpdate;
@@ -70,11 +71,28 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   @override
   void initState() {
     super.initState();
+    // Call the function to load the mobile number when the page initializes
+    _loadMobileNumber();
+
     if (widget.isUpdate) {
       if (widget.tournamentId == null) {
         throw Exception("tournamentId required for update");
       }
       _fetchTournamentDetails(widget.tournamentId!);
+    }
+  }
+
+  // New function to load the mobile number from shared preferences
+  Future<void> _loadMobileNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final mobileNumber = prefs.getString('mobileNumber');
+    if (mobileNumber != null && mobileNumber.isNotEmpty) {
+      setState(() {
+        // Clear the existing controllers
+        _adminControllers.clear();
+        // Add a new controller with the prefetched mobile number
+        _adminControllers.add(TextEditingController(text: mobileNumber));
+      });
     }
   }
 
