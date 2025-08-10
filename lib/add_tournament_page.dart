@@ -62,6 +62,8 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
   final TextEditingController _endDateController = TextEditingController();
 
   bool _loading = false;
+  // New state variable to track if the tournament has been saved
+  bool _tournamentSaved = false;
 
   // Define custom colors based on the provided theme
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
@@ -375,6 +377,10 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
             backgroundColor: Colors.green,
           ),
         );
+        // Set the state to indicate the tournament has been saved
+        setState(() {
+          _tournamentSaved = true;
+        });
       } else {
         final respBody = await response.stream.bytesToString();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -713,26 +719,29 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _addTournament,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentOrange,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              // Conditionally display the "Add Tournament" button
+              if (!_tournamentSaved)
+                ElevatedButton(
+                  onPressed: _addTournament,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentOrange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  child: _loading
+                      ? CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          widget.isUpdate
+                              ? 'Update Tournament'
+                              : 'Add Tournament',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
-                child: _loading
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        widget.isUpdate
-                            ? 'Update Tournament'
-                            : 'Add Tournament',
-                        style: const TextStyle(fontSize: 18),
-                      ),
-              ),
-              const SizedBox(height: 16),
+              if (!_tournamentSaved) const SizedBox(height: 16),
+              // Always display the "Share on WhatsApp" button
               ElevatedButton(
                 onPressed: _sendWhatsAppMessage,
                 style: ElevatedButton.styleFrom(
