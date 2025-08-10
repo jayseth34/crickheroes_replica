@@ -583,6 +583,8 @@ class _FixturesTabState extends State<FixturesTab> {
                         team2Name: match['teamB']!,
                         team1Players: team1Players,
                         team2Players: team2Players,
+                        matchId: match[
+                            'matchId']!, // Make sure your match data includes an ID
                       ),
                     ),
                   );
