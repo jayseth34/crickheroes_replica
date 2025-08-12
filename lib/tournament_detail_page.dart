@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'match_detail_page.dart'; // Assuming this file exists for cricket
-import 'RacquetSportApp.dart'; // Import RacquetSportApp for badminton/pickleball navigation
+import 'match_detail_page.dart';
+import 'RacquetSportApp.dart';
 import 'players_page.dart';
-import 'add_tournament_page.dart'; // Make sure this exists
-import 'view_tournaments_page.dart'; // Import the Tournament class
-import 'package:http/http.dart' as http; // Import for HTTP requests
-import 'dart:convert'; // Import for JSON decoding
+import 'add_tournament_page.dart';
+import 'view_tournaments_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'FootballScoringScreen.dart';
 
 // Define the Team class to match your API response
@@ -25,57 +25,59 @@ class Team {
 }
 
 class TournamentDetailPage extends StatelessWidget {
-  final Tournament tournament; // Changed type from Map<String, dynamic>
+  final Tournament tournament;
   final int matchId;
-  final bool isAdmin; // You can pass this as a parameter too
+  final bool isAdmin;
 
   const TournamentDetailPage(
       {super.key,
       required this.tournament,
       required this.matchId,
-      this.isAdmin = true}); // Default isAdmin to true for testing
+      this.isAdmin = true});
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
 
   @override
   Widget build(BuildContext context) {
+    // Ensure sportType is lowercase for consistent checks
+    final String sportType = tournament.sportType?.toLowerCase() ?? 'cricket';
+
     return DefaultTabController(
-      length: 5, // Increased to 5 for the new 'Stats' tab
+      length: 5,
       child: Scaffold(
-        backgroundColor: primaryBlue, // Set scaffold background
+        backgroundColor: primaryBlue,
         appBar: AppBar(
           title: Text(
-            tournament.name, // Access directly
+            tournament.name,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
-          backgroundColor: lightBlue, // Set app bar to lightBlue
+          backgroundColor: lightBlue,
           bottom: const TabBar(
-            labelColor: accentOrange, // Orange for selected tab
+            labelColor: accentOrange,
             unselectedLabelColor: Colors.white,
-            indicatorColor: accentOrange, // Orange indicator
-            isScrollable: true, // Make tabs scrollable if many
+            indicatorColor: accentOrange,
+            isScrollable: true,
             tabs: [
               Tab(text: 'About'),
               Tab(text: 'Fixtures'),
               Tab(text: 'Teams'),
               Tab(text: 'Points Table'),
-              Tab(text: 'Stats'), // New Stats Tab
+              Tab(text: 'Stats'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
             AboutTab(tournament: tournament, isAdmin: isAdmin),
-            FixturesTab(tournament: tournament),
+            FixturesTab(tournament: tournament, isAdmin: isAdmin),
             TeamsTab(tournamentId: tournament.id),
-            const PointsTableTab(),
-            const StatsTab(), // New Stats Tab Content
+            PointsTableTab(sportType: sportType),
+            StatsTab(sportType: sportType),
           ],
         ),
       ),
@@ -84,41 +86,29 @@ class TournamentDetailPage extends StatelessWidget {
 }
 
 class AboutTab extends StatelessWidget {
-  final Tournament tournament; // Changed type
+  final Tournament tournament;
   final bool isAdmin;
 
   const AboutTab({super.key, required this.tournament, required this.isAdmin});
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        InfoTile(
-            title: 'Tournament Name',
-            value: tournament.name), // Access directly
-        // Ensure 'sportType' is fetched correctly
-        InfoTile(
-            title: 'Sport Type',
-            value: tournament.sportType ?? 'N/A'), // Access directly
-        InfoTile(
-            title: 'Start Date',
-            value: tournament.startDate ?? 'N/A'), // Access directly
-        InfoTile(
-            title: 'Organizer',
-            value: tournament.ownerName ?? 'N/A'), // Access directly
-        InfoTile(
-            title: 'Location',
-            value: tournament.location ?? 'N/A'), // Access directly
+        InfoTile(title: 'Tournament Name', value: tournament.name),
+        InfoTile(title: 'Sport Type', value: tournament.sportType ?? 'N/A'),
+        InfoTile(title: 'Start Date', value: tournament.startDate ?? 'N/A'),
+        InfoTile(title: 'Organizer', value: tournament.ownerName ?? 'N/A'),
+        InfoTile(title: 'Location', value: tournament.location ?? 'N/A'),
         InfoTile(
           title: 'Description',
-          value: tournament.matchDetail?.toString() ??
-              'No description available.', // Assuming matchDetail is description for now
+          value:
+              tournament.matchDetail?.toString() ?? 'No description available.',
         ),
         const SizedBox(height: 20),
         if (isAdmin)
@@ -128,7 +118,7 @@ class AboutTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AddTournamentPage(
-                    tournamentId: tournament.id, // Access directly
+                    tournamentId: tournament.id,
                     tournament: {
                       'id': tournament.id,
                       'name': tournament.name,
@@ -145,7 +135,7 @@ class AboutTab extends StatelessWidget {
                       'basePrice': tournament.basePrice,
                       'duration': tournament.duration,
                       'matchDetail': tournament.matchDetail,
-                    }, // Pass as Map for AddTournamentPage
+                    },
                     isUpdate: true,
                   ),
                 ),
@@ -154,7 +144,7 @@ class AboutTab extends StatelessWidget {
             icon: const Icon(Icons.edit),
             label: const Text('Update Tournament'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: accentOrange, // Use accentOrange for button
+              backgroundColor: accentOrange,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               textStyle: const TextStyle(fontSize: 16),
@@ -171,25 +161,24 @@ class InfoTile extends StatelessWidget {
 
   const InfoTile({super.key, required this.title, required this.value});
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: lightBlue.withOpacity(0.7), // Card background with opacity
+      color: lightBlue.withOpacity(0.7),
       child: ListTile(
         title: Text(
           title,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold, color: Colors.white), // Text color
+          style:
+              const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         subtitle: Text(
           value,
-          style: const TextStyle(color: Colors.white70), // Subtitle text color
+          style: const TextStyle(color: Colors.white70),
         ),
       ),
     );
@@ -197,21 +186,21 @@ class InfoTile extends StatelessWidget {
 }
 
 class FixturesTab extends StatefulWidget {
-  final Tournament tournament; // Changed type
+  final Tournament tournament;
+  final bool isAdmin;
 
   const FixturesTab(
-      {super.key, required this.tournament}); // Updated constructor
+      {super.key, required this.tournament, required this.isAdmin});
 
   @override
   State<FixturesTab> createState() => _FixturesTabState();
 }
 
 class _FixturesTabState extends State<FixturesTab> {
-  // Sample data for fixtures. In a real app, this would likely come from a database.
   final List<Map<String, String>> fixtures = [
     {
-      'matchId': '1', // Added a dummy ID for now
-      'teamA': 'Team India', // Changed to separate team names
+      'matchId': '1',
+      'teamA': 'Team India',
       'teamB': 'Team South Africa',
       'date': '2025-05-18',
       'venue': 'Stadium A',
@@ -253,10 +242,9 @@ class _FixturesTabState extends State<FixturesTab> {
 
   final DateFormat formatter = DateFormat('yyyy-MM-dd');
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
 
   List<Team> _availableTeams = [];
   Team? _selectedTeamA;
@@ -297,10 +285,6 @@ class _FixturesTabState extends State<FixturesTab> {
     setState(() {
       fixtures.add(newFixture);
     });
-    // TODO: Implement API call to save the new fixture to your backend
-    // Example:
-    // final saveUrl = Uri.parse("YOUR_SAVE_FIXTURE_API_ENDPOINT");
-    // await http.post(saveUrl, body: json.encode(newFixture));
   }
 
   void deleteFixture(int index) {
@@ -312,8 +296,6 @@ class _FixturesTabState extends State<FixturesTab> {
   Future<void> _showAddFixtureDialog() async {
     final venueController = TextEditingController();
     DateTime? selectedDate;
-
-    // Reset selected teams when dialog opens
     _selectedTeamA = null;
     _selectedTeamB = null;
 
@@ -323,7 +305,7 @@ class _FixturesTabState extends State<FixturesTab> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setState) {
             return AlertDialog(
-              backgroundColor: primaryBlue, // Dialog background
+              backgroundColor: primaryBlue,
               title: const Text('Add Fixture',
                   style: TextStyle(color: Colors.white)),
               content: SingleChildScrollView(
@@ -334,9 +316,8 @@ class _FixturesTabState extends State<FixturesTab> {
                       value: _selectedTeamA,
                       hint: const Text('Select Team A',
                           style: TextStyle(color: Colors.white70)),
-                      dropdownColor: lightBlue, // Dropdown background color
-                      style: const TextStyle(
-                          color: Colors.white), // Selected item text color
+                      dropdownColor: lightBlue,
+                      style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Team A',
                         labelStyle: const TextStyle(color: Colors.white70),
@@ -367,9 +348,8 @@ class _FixturesTabState extends State<FixturesTab> {
                       value: _selectedTeamB,
                       hint: const Text('Select Team B',
                           style: TextStyle(color: Colors.white70)),
-                      dropdownColor: lightBlue, // Dropdown background color
-                      style: const TextStyle(
-                          color: Colors.white), // Selected item text color
+                      dropdownColor: lightBlue,
+                      style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Team B',
                         labelStyle: const TextStyle(color: Colors.white70),
@@ -424,14 +404,12 @@ class _FixturesTabState extends State<FixturesTab> {
                             return Theme(
                               data: ThemeData.dark().copyWith(
                                 colorScheme: ColorScheme.dark(
-                                  primary:
-                                      accentOrange, // Header background color
-                                  onPrimary: Colors.white, // Header text color
-                                  surface: lightBlue, // Body background color
-                                  onSurface: Colors.white, // Body text color
+                                  primary: accentOrange,
+                                  onPrimary: Colors.white,
+                                  surface: lightBlue,
+                                  onSurface: Colors.white,
                                 ),
-                                dialogBackgroundColor:
-                                    primaryBlue, // Dialog background
+                                dialogBackgroundColor: primaryBlue,
                               ),
                               child: child!,
                             );
@@ -444,8 +422,8 @@ class _FixturesTabState extends State<FixturesTab> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: lightBlue, // Button background
-                        foregroundColor: Colors.white, // Button text color
+                        backgroundColor: lightBlue,
+                        foregroundColor: Colors.white,
                       ),
                       child: Text(selectedDate == null
                           ? "Select Date"
@@ -466,13 +444,12 @@ class _FixturesTabState extends State<FixturesTab> {
                         venueController.text.isNotEmpty &&
                         selectedDate != null) {
                       final newFixture = {
-                        'matchId': (fixtures.length + 1)
-                            .toString(), // Simple dummy ID generation
+                        'matchId': (fixtures.length + 1).toString(),
                         'teamA': _selectedTeamA!.teamName,
                         'teamB': _selectedTeamB!.teamName,
                         'venue': venueController.text,
                         'date': formatter.format(selectedDate!),
-                        'score': '', // Score can be updated later
+                        'score': '',
                       };
                       addFixture(newFixture);
                       Navigator.pop(context);
@@ -485,8 +462,8 @@ class _FixturesTabState extends State<FixturesTab> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: accentOrange, // Save button background
-                    foregroundColor: Colors.white, // Save button text color
+                    backgroundColor: accentOrange,
+                    foregroundColor: Colors.white,
                   ),
                   child: const Text('Save'),
                 ),
@@ -501,46 +478,40 @@ class _FixturesTabState extends State<FixturesTab> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    // Get the sport type from the tournament object passed to this widget
-    final String sportType = widget.tournament.sportType?.toLowerCase() ??
-        'unknown'; // Access directly
-
+    final String sportType =
+        widget.tournament.sportType?.toLowerCase() ?? 'unknown';
     return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
+      backgroundColor: primaryBlue,
       body: ListView.builder(
         itemCount: fixtures.length,
         itemBuilder: (context, index) {
           final match = fixtures[index];
           final fixtureDate = formatter.parse(match['date']!);
           final isUpcoming = fixtureDate.isAfter(now);
-
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             elevation: 5,
-            color: lightBlue.withOpacity(0.7), // Card background
+            color: lightBlue.withOpacity(0.7),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
               onTap: () {
-                // Conditional redirection based on sportType
                 if (sportType == 'cricket') {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => MatchDetailPage(
-                        matchId: int.parse(
-                            match['matchId']!), // Pass dynamic matchId
+                        matchId: int.parse(match['matchId']!),
                         match: {
                           'match': '${match['teamA']} vs ${match['teamB']}',
-                          'teamA': match['teamA'], // Pass dynamic team names
-                          'teamB': match['teamB'], // Pass dynamic team names
+                          'teamA': match['teamA'],
+                          'teamB': match['teamB'],
                         },
                       ),
                     ),
                   );
-                } else if (sportType == 'badminton' ||
-                    sportType == 'pickleball' ||
-                    sportType == 'throwball') {
+                } else if (['badminton', 'tennis', 'pickleball', 'throwball']
+                    .contains(sportType)) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -548,7 +519,6 @@ class _FixturesTabState extends State<FixturesTab> {
                     ),
                   );
                 } else if (sportType == 'football') {
-                  // Create dummy player lists for football for demonstration
                   List<String> team1Players = [
                     '${match['teamA']} Player 1',
                     '${match['teamA']} Player 2',
@@ -579,94 +549,71 @@ class _FixturesTabState extends State<FixturesTab> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => FootballScoringScreen(
-                        team1Name: match['teamA']!,
-                        team2Name: match['teamB']!,
+                        matchId: match['matchId']!,
                         team1Players: team1Players,
                         team2Players: team2Players,
-                        matchId: match[
-                            'matchId']!, // Make sure your match data includes an ID
+                        team1Name: match['teamA']!,
+                        team2Name: match['teamB']!,
                       ),
                     ),
                   );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(
-                            'Navigation not defined for $sportType fixtures.')),
-                  );
                 }
               },
-              leading: Icon(
-                isUpcoming ? Icons.schedule : Icons.check_circle,
-                color: isUpcoming ? accentOrange : Colors.green, // Icon color
-                size: 32,
-              ),
+              contentPadding: const EdgeInsets.all(16),
               title: Text(
-                '${match['teamA']} vs ${match['teamB']}', // Display dynamic team names
+                '${match['teamA']} vs ${match['teamB']}',
                 style: const TextStyle(
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white), // Title text color
+                    fontSize: 16),
               ),
-              subtitle: Column(
-                // Use Column to ensure text wraps
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Date: ${match['date']}",
-                      style: const TextStyle(color: Colors.white70)),
-                  Text("Venue: ${match['venue']}",
-                      style: const TextStyle(color: Colors.white70)),
-                  Text(
-                      isUpcoming
-                          ? "Status: Upcoming"
-                          : "Score: ${match['score']}",
-                      style: const TextStyle(color: Colors.white70)),
-                ],
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: primaryBlue, // Dialog background
-                      title: const Text('Delete Fixture',
-                          style: TextStyle(color: Colors.white)),
-                      content: Text(
-                          'Delete "${match['teamA']} vs ${match['teamB']}"?', // Dynamic team names
-                          style: const TextStyle(color: Colors.white70)),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('Cancel',
-                                style: TextStyle(color: Colors.white70))),
-                        ElevatedButton(
-                          onPressed: () {
-                            deleteFixture(index);
-                            Navigator.of(ctx).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                accentOrange, // Delete button background
-                            foregroundColor:
-                                Colors.white, // Delete button text color
-                          ),
-                          child: const Text('Delete'),
-                        ),
-                      ],
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Venue: ${match['venue']}',
+                      style: const TextStyle(color: Colors.white70),
                     ),
-                  );
-                },
+                    const SizedBox(height: 4),
+                    Text(
+                      'Date: ${match['date']}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      match['score']!.isNotEmpty
+                          ? 'Result: ${match['score']}'
+                          : 'Status: Upcoming',
+                      style: TextStyle(
+                        color: match['score']!.isNotEmpty
+                            ? Colors.greenAccent
+                            : accentOrange,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              trailing: widget.isAdmin
+                  ? IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () {
+                        deleteFixture(index);
+                      },
+                    )
+                  : null,
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddFixtureDialog,
-        backgroundColor: accentOrange, // FAB color
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton(
+              onPressed: _showAddFixtureDialog,
+              backgroundColor: accentOrange,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 }
@@ -682,12 +629,10 @@ class TeamsTab extends StatefulWidget {
 
 class _TeamsTabState extends State<TeamsTab> {
   static const Color primaryBlue = Color(0xFF1A0F49);
-  static const Color accentOrange = Color(0xFFF26C4F);
   static const Color lightBlue = Color(0xFF3F277B);
+  static const Color accentOrange = Color(0xFFF26C4F);
 
   List<Team> _teams = [];
-  bool _isLoading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -696,14 +641,8 @@ class _TeamsTabState extends State<TeamsTab> {
   }
 
   Future<void> _fetchTeams() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
     final url = Uri.parse(
         "https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}");
-
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -712,173 +651,774 @@ class _TeamsTabState extends State<TeamsTab> {
           _teams = data.map((t) => Team.fromJson(t)).toList();
         });
       } else {
-        setState(() {
-          _error = "Failed to load teams: Status ${response.statusCode}";
-        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_error!)),
+          SnackBar(
+              content:
+                  Text("Failed to load teams: Status ${response.statusCode}")),
         );
       }
     } catch (e) {
-      setState(() {
-        _error = "Error fetching teams: ${e.toString()}";
-      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_error!)),
+        SnackBar(content: Text("Error fetching teams: ${e.toString()}")),
       );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
-  }
-
-  // A simple function to delete a team by id. This would need to be implemented on the backend.
-  void _deleteTeam(int teamId) {
-    // This is a placeholder. You would call a DELETE API here.
-    // Example: await http.delete(Uri.parse("your_delete_api_url/$teamId"));
-    setState(() {
-      _teams.removeWhere((team) => team.id == teamId);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Team deleted (placeholder)'),
-        backgroundColor: Colors.green,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(color: accentOrange));
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Text(
-          _error!,
-          style: const TextStyle(color: Colors.red, fontSize: 16),
-        ),
-      );
-    }
-
-    if (_teams.isEmpty) {
-      return const Center(
-        child: Text(
-          "No teams available for this tournament.",
-          style: TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: primaryBlue,
-      body: ListView.builder(
-        itemCount: _teams.length,
-        itemBuilder: (context, index) {
-          final team = _teams[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            elevation: 4,
-            color: lightBlue.withOpacity(0.7),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              leading: const Icon(Icons.groups, color: accentOrange),
-              title: Text(
-                team.teamName,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.white),
+      body: _teams.isEmpty
+          ? const Center(
+              child: Text(
+                'No teams found for this tournament.',
+                style: TextStyle(fontSize: 18, color: Colors.white70),
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: primaryBlue,
-                          title: const Text('Delete Team',
-                              style: TextStyle(color: Colors.white)),
-                          content: Text(
-                              'Are you sure you want to delete ${team.teamName}?',
-                              style: const TextStyle(color: Colors.white70)),
-                          actions: [
-                            TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(),
-                                child: const Text('Cancel',
-                                    style: TextStyle(color: Colors.white70))),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              itemCount: _teams.length,
+              itemBuilder: (context, index) {
+                final team = _teams[index];
+                return Card(
+                  color: lightBlue.withOpacity(0.7),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            team.teamName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
                             ElevatedButton(
                               onPressed: () {
-                                _deleteTeam(team.id);
-                                Navigator.of(ctx).pop();
+                                // TODO: Implement join team logic
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: accentOrange,
                                 foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              child: const Text('Delete'),
+                              child: const Text('Join Team'),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_forward_ios,
+                                  color: Colors.white70, size: 16),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        PlayersPage(teamId: team.id),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios,
-                        color: Colors.white70, size: 16),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class PointsTableTab extends StatefulWidget {
+  final String sportType;
+
+  const PointsTableTab({super.key, required this.sportType});
+
+  @override
+  State<PointsTableTab> createState() => _PointsTableTabState();
+}
+
+class _PointsTableTabState extends State<PointsTableTab> {
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
+  static const Color lightBlueWithOpacity = Color(0x603F277B);
+
+  late List<Map<String, dynamic>> pointsData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPointsData();
+  }
+
+  // A helper function to load different mock data based on sport type
+  void _loadPointsData() {
+    setState(() {
+      if (widget.sportType == 'cricket') {
+        pointsData = [
+          {
+            'team': 'Team Alpha',
+            'wins': 5,
+            'losses': 0,
+            'draws': 1,
+            'points': 16,
+            'nrr': 1.250
+          },
+          {
+            'team': 'Team Beta',
+            'wins': 4,
+            'losses': 1,
+            'draws': 1,
+            'points': 13,
+            'nrr': 0.890
+          },
+          {
+            'team': 'Team Gamma',
+            'wins': 3,
+            'losses': 2,
+            'draws': 1,
+            'points': 10,
+            'nrr': 0.120
+          },
+          {
+            'team': 'Team Delta',
+            'wins': 2,
+            'losses': 3,
+            'draws': 1,
+            'points': 7,
+            'nrr': -0.050
+          },
+          {
+            'team': 'Team Epsilon',
+            'wins': 1,
+            'losses': 4,
+            'draws': 1,
+            'points': 4,
+            'nrr': -0.780
+          },
+        ];
+      } else if (widget.sportType == 'football') {
+        pointsData = [
+          {
+            'team': 'FC Dragons',
+            'wins': 8,
+            'losses': 2,
+            'draws': 0,
+            'points': 24,
+            'goals_for': 25,
+            'goals_against': 10
+          },
+          {
+            'team': 'United FC',
+            'wins': 7,
+            'losses': 2,
+            'draws': 1,
+            'points': 22,
+            'goals_for': 20,
+            'goals_against': 12
+          },
+          {
+            'team': 'Spartans',
+            'wins': 5,
+            'losses': 4,
+            'draws': 1,
+            'points': 16,
+            'goals_for': 18,
+            'goals_against': 15
+          },
+          {
+            'team': 'Dynamo',
+            'wins': 3,
+            'losses': 6,
+            'draws': 1,
+            'points': 10,
+            'goals_for': 12,
+            'goals_against': 20
+          },
+        ];
+      } else if (['badminton', 'tennis', 'pickleball', 'throwball']
+          .contains(widget.sportType)) {
+        pointsData = [
+          {
+            'team': 'Shuttle Masters',
+            'wins': 6,
+            'losses': 1,
+            'matches_played': 7,
+            'points': 12
+          },
+          {
+            'team': 'Smash Kings',
+            'wins': 5,
+            'losses': 2,
+            'matches_played': 7,
+            'points': 10
+          },
+          {
+            'team': 'Court Dominators',
+            'wins': 4,
+            'losses': 3,
+            'matches_played': 7,
+            'points': 8
+          },
+          {
+            'team': 'Feather Fury',
+            'wins': 2,
+            'losses': 5,
+            'matches_played': 7,
+            'points': 4
+          },
+        ];
+      } else {
+        // Default to cricket if sport type is not recognized
+        pointsData = [
+          {
+            'team': 'Team Alpha',
+            'wins': 5,
+            'losses': 0,
+            'draws': 1,
+            'points': 16,
+            'nrr': 1.250
+          },
+          {
+            'team': 'Team Beta',
+            'wins': 4,
+            'losses': 1,
+            'draws': 1,
+            'points': 13,
+            'nrr': 0.890
+          },
+        ];
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    List<DataColumn> columns;
+    List<DataRow> rows;
+
+    if (widget.sportType == 'cricket') {
+      columns = const [
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('W',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('L',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('D',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Pts',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('NRR',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = pointsData
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['wins'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['losses'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['draws'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['points'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+                DataCell(Text(data['nrr'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+              ]))
+          .toList();
+    } else if (widget.sportType == 'football') {
+      columns = const [
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('W',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('L',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('D',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Pts',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('GF',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('GA',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = pointsData
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['wins'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['losses'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['draws'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['points'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+                DataCell(Text(data['goals_for'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['goals_against'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+              ]))
+          .toList();
+    } else if (['badminton', 'tennis', 'pickleball', 'throwball']
+        .contains(widget.sportType)) {
+      columns = const [
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('MP',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('W',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('L',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Pts',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = pointsData
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['matches_played'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['wins'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['losses'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['points'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+              ]))
+          .toList();
+    } else {
+      columns = const [
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('W',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('L',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Pts',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = pointsData
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['wins'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['losses'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['points'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+              ]))
+          .toList();
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Points Table',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Card(
+            color: lightBlueWithOpacity,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DataTable(
+              columnSpacing: 16.0,
+              dataRowHeight: 56.0,
+              headingRowHeight: 56.0,
+              horizontalMargin: 12.0,
+              columns: columns,
+              rows: rows,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StatsTab extends StatefulWidget {
+  final String sportType;
+
+  const StatsTab({super.key, required this.sportType});
+
+  @override
+  State<StatsTab> createState() => _StatsTabState();
+}
+
+class _StatsTabState extends State<StatsTab> {
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
+  static const Color lightBlueWithOpacity = Color(0x603F277B);
+
+  String _sortBy = 'most_runs'; // Default sort criteria for cricket
+
+  List<Map<String, dynamic>> cricketStats = [
+    {'player': 'Player 1', 'team': 'Team Alpha', 'runs': 250, 'wickets': 15},
+    {'player': 'Player 2', 'team': 'Team Beta', 'runs': 180, 'wickets': 18},
+    {'player': 'Player 3', 'team': 'Team Alpha', 'runs': 120, 'wickets': 12},
+    {'player': 'Player 4', 'team': 'Team Gamma', 'runs': 300, 'wickets': 5},
+    {'player': 'Player 5', 'team': 'Team Beta', 'runs': 90, 'wickets': 20},
+  ];
+
+  List<Map<String, dynamic>> footballStats = [
+    {'player': 'Striker A', 'team': 'FC Dragons', 'goals': 15, 'assists': 8},
+    {'player': 'Midfielder B', 'team': 'United FC', 'goals': 10, 'assists': 12},
+    {'player': 'Winger C', 'team': 'FC Dragons', 'goals': 9, 'assists': 5},
+    {'player': 'Defender D', 'team': 'Spartans', 'goals': 2, 'assists': 3},
+  ];
+
+  List<Map<String, dynamic>> racquetSportsStats = [
+    {
+      'player': 'Shuttle Master 1',
+      'team': 'Shuttle Masters',
+      'points': 150,
+      'aces': 25
+    },
+    {
+      'player': 'Smash King 1',
+      'team': 'Smash Kings',
+      'points': 120,
+      'aces': 30
+    },
+    {
+      'player': 'Shuttle Master 2',
+      'team': 'Shuttle Masters',
+      'points': 100,
+      'aces': 15
+    },
+    {
+      'player': 'Feather Fury 1',
+      'team': 'Feather Fury',
+      'points': 80,
+      'aces': 10
+    },
+  ];
+
+  List<Map<String, dynamic>> getSortedStats() {
+    List<Map<String, dynamic>> stats;
+    final String sportType = widget.sportType;
+
+    if (sportType == 'cricket') {
+      stats = List.from(cricketStats);
+      if (_sortBy == 'most_runs') {
+        stats.sort((a, b) => b['runs'].compareTo(a['runs']));
+      } else if (_sortBy == 'most_wickets') {
+        stats.sort((a, b) => b['wickets'].compareTo(a['wickets']));
+      }
+    } else if (sportType == 'football') {
+      stats = List.from(footballStats);
+      if (_sortBy == 'most_goals') {
+        stats.sort((a, b) => b['goals'].compareTo(a['goals']));
+      }
+    } else if (['badminton', 'tennis', 'pickleball', 'throwball']
+        .contains(sportType)) {
+      stats = List.from(racquetSportsStats);
+      if (_sortBy == 'most_points') {
+        stats.sort((a, b) => b['points'].compareTo(a['points']));
+      }
+    } else {
+      stats = [];
+    }
+    return stats;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    List<Map<String, dynamic>> sortedStats = getSortedStats();
+    List<DataColumn> columns;
+    List<DataRow> rows;
+
+    if (widget.sportType == 'cricket') {
+      columns = const [
+        DataColumn(
+            label: Text('Player',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Runs',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Wickets',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = sortedStats
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['player'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['runs'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+                DataCell(Text(data['wickets'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+              ]))
+          .toList();
+    } else if (widget.sportType == 'football') {
+      columns = const [
+        DataColumn(
+            label: Text('Player',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Goals',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Assists',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = sortedStats
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['player'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['goals'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+                DataCell(Text(data['assists'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+              ]))
+          .toList();
+    } else if (['badminton', 'tennis', 'pickleball', 'throwball']
+        .contains(widget.sportType)) {
+      columns = const [
+        DataColumn(
+            label: Text('Player',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Points',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Aces',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = sortedStats
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['player'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['points'].toString(),
+                    style: const TextStyle(color: accentOrange))),
+                DataCell(Text(data['aces'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+              ]))
+          .toList();
+    } else {
+      columns = const [
+        DataColumn(
+            label: Text('Player',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+        DataColumn(
+            label: Text('Team',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white))),
+      ];
+      rows = sortedStats
+          .map((data) => DataRow(cells: [
+                DataCell(Text(data['player'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+                DataCell(Text(data['team'].toString(),
+                    style: const TextStyle(color: Colors.white70))),
+              ]))
+          .toList();
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Player Stats (${widget.sportType.toUpperCase()})',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          // Buttons for sorting
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                if (widget.sportType == 'cricket') ...[
+                  ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PlayersPage(teamId: team.id),
-                        ),
-                      );
+                      setState(() {
+                        _sortBy = 'most_runs';
+                      });
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _sortBy == 'most_runs' ? accentOrange : lightBlue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Most Runs'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _sortBy = 'most_wickets';
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _sortBy == 'most_wickets' ? accentOrange : lightBlue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Most Wickets'),
                   ),
                 ],
-              ),
+                if (widget.sportType == 'football') ...[
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _sortBy = 'most_goals';
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _sortBy == 'most_goals' ? accentOrange : lightBlue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Most Goals'),
+                  ),
+                ],
+                if (['badminton', 'tennis', 'pickleball', 'throwball']
+                    .contains(widget.sportType)) ...[
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _sortBy = 'most_points';
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _sortBy == 'most_points' ? accentOrange : lightBlue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Most Points'),
+                  ),
+                ],
+              ],
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// Placeholder for the Points Table tab
-class PointsTableTab extends StatelessWidget {
-  const PointsTableTab({super.key});
-  static const Color primaryBlue = Color(0xFF1A0F49);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Points Table is coming soon!',
-        style: TextStyle(fontSize: 18, color: Colors.white70),
-      ),
-    );
-  }
-}
-
-// Placeholder for the Stats tab
-class StatsTab extends StatelessWidget {
-  const StatsTab({super.key});
-  static const Color primaryBlue = Color(0xFF1A0F49);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Stats are coming soon!',
-        style: TextStyle(fontSize: 18, color: Colors.white70),
+          ),
+          Card(
+            color: lightBlueWithOpacity,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DataTable(
+              columnSpacing: 16.0,
+              dataRowHeight: 56.0,
+              headingRowHeight: 56.0,
+              horizontalMargin: 12.0,
+              columns: columns,
+              rows: rows,
+            ),
+          ),
+        ],
       ),
     );
   }
