@@ -59,7 +59,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
 
   List<String> currentRoles = [];
   String? _profileImageUrl;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _isProfileComplete = false;
   String _storedMobileNumber = '';
   // Define custom colors based on the provided theme
@@ -87,8 +87,8 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   // New method to load player ID and fetch data
   Future<void> _loadAndFetchPlayerData() async {
     final prefs = await SharedPreferences.getInstance();
-    final storedPlayerId = prefs.getString('playerId');
-    final int playerId = int.tryParse(storedPlayerId ?? '') ?? 0;
+    final int playerId = prefs.getInt('playerId') ?? 0;
+    print(playerId);
     final storedNumber = prefs.getString('mobileNumber');
     if (storedNumber != null) {
       setState(() {

@@ -70,14 +70,8 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
     const apiUrl =
         'https://sportsdecor.somee.com/api/Tournament/GetAllTournaments';
 
-    print('--- Fetching Tournaments ---');
-    print('Request: GET $apiUrl');
-
     try {
       final response = await http.get(Uri.parse(apiUrl));
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -90,7 +84,6 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
         throw Exception('Failed to load tournaments');
       }
     } catch (e) {
-      print('Error fetching tournaments: $e');
       setState(() {
         isError = true;
         isLoading = false;

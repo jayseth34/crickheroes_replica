@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
+import 'package:http/http.dart' as http; // Import http package for API calls
+import 'dart:convert'; // Import convert for JSON decoding
 
 class OtpPage extends StatefulWidget {
   final String phone;
@@ -58,12 +60,51 @@ class _OtpPageState extends State<OtpPage> {
     }
   }
 
+  // New async function to handle the API call and data storage
+  Future<void> _loginWithApi() async {
+    // NOTE: For a real app, you would use a base URL and add a dynamic number.
+    // Here, we use the provided number for demonstration.
+    // The API URL is hardcoded as per the request, but in a real scenario,
+    // you would use the _storedMobileNumber state variable.
+    final String apiUrl =
+        'https://localhost:7116/api/Auth/loginWithMob?mobNo=$_storedMobileNumber';
+
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        // API call was successful. Decode the JSON response.
+        final responseData = json.decode(response.body);
+        final int? playerId = responseData['id'];
+
+        if (playerId != null) {
+          // Store the retrieved 'id' in shared preferences as 'playerId'.
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('playerId', playerId);
+          print('Player ID ($playerId) stored successfully!');
+
+          // Navigate to the next page after successful data storage.
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
+        } else {
+          print('Error: "id" field not found in API response.');
+        }
+      } else {
+        // Handle cases where the server responded with an error status code.
+        print('API request failed with status: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Catch any network or other errors during the API call.
+      print('An error occurred during API call: $e');
+    }
+  }
+
   void verifyOtp() {
     if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-      );
+      // Call the new API function instead of navigating directly.
+      _loginWithApi();
     }
   }
 
