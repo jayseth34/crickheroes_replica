@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert'; // Required for jsonEncode and jsonDecode
-import 'package:uuid/uuid.dart'; // Required for generating unique IDs
+import 'dart:convert';
+import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Custom painter to draw the angled background for player name/category
 class AngledBackgroundPainter extends CustomPainter {
@@ -72,26 +74,37 @@ class LinePatternPainter extends CustomPainter {
 
 class AuctionPage extends StatefulWidget {
   final String tournamentName;
-
-  const AuctionPage({required this.tournamentName, Key? key}) : super(key: key);
+  final int tournamentId;
+  const AuctionPage(
+      {required this.tournamentName, required this.tournamentId, Key? key})
+      : super(key: key);
 
   @override
   State<AuctionPage> createState() => _AuctionPageState();
 }
 
 class _AuctionPageState extends State<AuctionPage> {
+  // Define custom colors at the class level to be accessible everywhere
+  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color darkBlue =
+      Color(0xFF0D082A); // Even darker blue for elements
+  static const Color bidBoxColor =
+      Color(0xFF2A1C63); // Color for bid display boxes
+
   // Base URL for your simulated backend API
-  final String _baseUrl = 'https://your-backend-api.com/api/Tournament';
+  final String _baseUrl = 'https://sportsdecor.somee.com/api/Tournament';
 
   final Uuid _uuid = const Uuid(); // Instance to generate unique IDs
 
   final int basePrice = 400; // Changed to 400 PTS as per image
   int currentBid = 400; // Changed to 400 PTS as per image
-  // Removed: int? previousBid;
-  // Removed: int? formerBid;
 
   String playerName = "No Player"; // Current player being auctioned
   String playerCategory = "N/A"; // Added player category
+  String playerImageUrl =
+      'https://placehold.co/100x100/333333/FFFFFF?text=Player'; // Placeholder for player image
   String? selectedTeam; // The team that currently has the highest bid
   String? soldTo; // The team the player was sold to, or 'Unsold'
   int bidIncrement = 10; // Initial bid increment value
@@ -109,70 +122,88 @@ class _AuctionPageState extends State<AuctionPage> {
   final List<Map<String, dynamic>> unsoldPlayers = [];
   final List<Map<String, dynamic>> allPlayers = []; // List to hold all players
 
-  // Initial list of teams (for fresh start or if not loaded from backend)
-  final List<Map<String, dynamic>> _initialTeams = [
-    {
-      'name': 'Team A',
-      'wallet': 1000,
-      'logo':
-          'https://placehold.co/100x100/FF5733/FFFFFF?text=Team+A', // Distinct color
-    },
-    {
-      'name': 'Morkhiya stallions',
-      'wallet': 800,
-      'logo':
-          'https://placehold.co/100x100/33FF57/000000?text=Stallions', // Distinct color
-    },
-    {
-      'name': 'RSBL',
-      'wallet': 600,
-      'logo':
-          'https://placehold.co/100x100/3357FF/FFFFFF?text=RSBL', // Distinct color
-    },
-    {
-      'name': 'Riddhi siddhi bullions limited',
-      'wallet': 600,
-      'logo':
-          'https://placehold.co/100x100/FF33A1/000000?text=R+S+B+L', // Distinct color
-    },
-    {
-      'name': 'The shah and nahar cup',
-      'wallet': 600,
-      'logo':
-          'https://placehold.co/100x100/33FFF5/000000?text=Cup', // Distinct color
-    },
-    {
-      'name': 'Team F',
-      'wallet': 600,
-      'logo':
-          'https://placehold.co/100x100/A133FF/FFFFFF?text=Team+F', // Distinct color
-    },
-  ];
-
   // List of participating teams with their wallets and logos (mutable)
   final List<Map<String, dynamic>> teams = [];
 
   // Admin mode toggle
-  bool _isAdmin = true; // Set to true by default for admin functionality
+  bool _isAdmin = false;
+  bool _isActualAdmin = false;
 
   // New: Admin User ID and Current User ID for conditional access
-  final String _adminUserId = '9920279905'; // The static admin mobile number
+  static const String _adminUserId =
+      '9920279905'; // The static admin mobile number
   String _currentUserId =
-      '9920279905'; // Dummy current user ID, change for testing non-admin
+      ''; // Dummy current user ID, change for testing non-admin
+  String _storedMobileNumber = '';
 
   @override
   void initState() {
     super.initState();
     _bidIncrementController.text = bidIncrement.toString();
-    _fetchInitialPlayersFromBackend(); // Ensure dummy data is always present initially
-    _initializeDefaultTeams(); // Ensure default teams are present initially
-    _loadAuctionStateFromBackend(); // Load persisted state, which will override if found
+    _loadStoredMobileNumber(); // Load the mobile number from SharedPreferences
+    // Load initial state from backend after getting the mobile number
+    _loadAuctionStateFromBackend();
   }
 
   @override
   void dispose() {
     _bidIncrementController.dispose();
     super.dispose();
+  }
+
+  // --- NEW: FUNCTION TO LOAD STORED MOBILE NUMBER ---
+  void _loadStoredMobileNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedNumber = prefs.getString('mobileNumber');
+    if (storedNumber != null) {
+      setState(() {
+        _storedMobileNumber = storedNumber;
+        _currentUserId = storedNumber;
+        _isAdmin = storedNumber ==
+            _adminUserId; // Check if the stored number is the admin number
+        _isActualAdmin = storedNumber == _adminUserId;
+      });
+    } else {
+      // If no number is stored, default to a non-admin state
+      setState(() {
+        _isAdmin = false;
+        _currentUserId = '';
+      });
+    }
+  }
+
+  // --- FUNCTION TO FETCH TEAMS FROM API ---
+  Future<void> _fetchTeamsFromApi() async {
+    final String url =
+        'https://localhost:7116/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> teamData = json.decode(response.body);
+        setState(() {
+          teams.clear();
+          for (var teamJson in teamData) {
+            teams.add({
+              'id': teamJson['id'],
+              'players_per_team': teamJson['players_per_team'] ??
+                  10, // Default to 10 if not provided
+              'name': teamJson['team_name'],
+              'wallet': teamJson['team_wallet_balance'],
+              'logo': teamJson['logo_url'], // The URL is a base64 string
+            });
+          }
+        });
+        print('Teams loaded successfully from API.');
+      } else {
+        print('Failed to load teams from API: ${response.statusCode}');
+        _showSnackbar('Failed to load teams from API. Please try again later.');
+      }
+    } catch (e) {
+      print('Error fetching teams from API: $e');
+      _showSnackbar('Error fetching teams. Please check your connection.');
+    }
   }
 
   // Simulate API call to save the entire auction state to backend
@@ -189,8 +220,6 @@ class _AuctionPageState extends State<AuctionPage> {
           'auctionPhase': _auctionPhase,
           'currentPlayerIndex': _currentPlayerIndex,
           'currentBid': currentBid,
-          // Removed: 'previousBid': previousBid,
-          // Removed: 'formerBid': formerBid,
           'playerName': playerName,
           'playerCategory': playerCategory, // Save player category
           'selectedTeam': selectedTeam,
@@ -264,8 +293,6 @@ class _AuctionPageState extends State<AuctionPage> {
           _auctionPhase = data['auctionPhase'] ?? 'setup';
           _currentPlayerIndex = data['currentPlayerIndex'] ?? 0;
           currentBid = data['currentBid'] ?? basePrice;
-          // Removed: previousBid = data['previousBid'];
-          // Removed: formerBid = data['formerBid'];
           playerName = data['playerName'] ?? "No Player";
           playerCategory =
               data['playerCategory'] ?? "N/A"; // Load player category
@@ -294,7 +321,7 @@ class _AuctionPageState extends State<AuctionPage> {
           if (data['teams'] is List) {
             teams.addAll(List<Map<String, dynamic>>.from(data['teams']));
           } else {
-            _initializeDefaultTeams(); // Fallback if teams data is missing
+            _fetchTeamsFromApi(); // Fallback if teams data is missing
           }
 
           if (_auctionPhase == 'mainAuction' && _playersToAuction.isEmpty) {
@@ -311,55 +338,73 @@ class _AuctionPageState extends State<AuctionPage> {
       } else {
         print(
             'Failed to load auction state: ${response.statusCode} - ${response.body}');
-        // Fallback to dummy data if API call fails or returns non-200
+        // Fallback to fetching new data if API call fails or returns non-200
         _fetchInitialPlayersFromBackend();
-        _initializeDefaultTeams();
+        _fetchTeamsFromApi(); // Fallback to fetching teams from API
         _saveAuctionStateToBackend(); // Save this initial state to backend
       }
     } catch (e) {
       print('Error loading auction state from backend: $e');
-      // Fallback to dummy data on network error
+      // Fallback to fetching new data on network error
       _fetchInitialPlayersFromBackend();
-      _initializeDefaultTeams();
+      _fetchTeamsFromApi(); // Fallback to fetching teams from API
       _saveAuctionStateToBackend(); // Save this initial state to backend
     }
   }
 
-  // Function to simulate fetching an initial set of players from a backend API
-  void _fetchInitialPlayersFromBackend() {
-    allPlayers.clear();
-    final List<String> categories = [
-      'Batsman',
-      'Bowler',
-      'All Rounder',
-      'Wicketkeeper'
-    ];
-    for (int i = 1; i <= 15; i++) {
-      allPlayers.add({
-        'id': _uuid.v4(), // Generate a unique ID for each player
-        'playerName': "Player $i",
-        'playerCategory':
-            categories[i % categories.length], // Assign a category
-        'price': basePrice,
-        'status': 'Upcoming',
-        'isFavorite': false,
-      });
+  // Function to fetch players from the new backend API
+  Future<void> _fetchInitialPlayersFromBackend() async {
+    final String url =
+        'https://localhost:7116/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> playerData = json.decode(response.body);
+        setState(() {
+          allPlayers.clear();
+          for (var playerJson in playerData) {
+            allPlayers.add({
+              'id': playerJson['id'].toString(), // Use id from API
+              'playerName': playerJson['name'], // Map 'name' to 'playerName'
+              'playerCategory':
+                  playerJson['role'], // Map 'role' to 'playerCategory'
+              'price': playerJson['isSold']
+                  ? 0
+                  : basePrice, // Assuming base price for unsold
+              'status': playerJson['isSold']
+                  ? 'Sold'
+                  : 'Upcoming', // Map 'isSold' to 'status'
+              'isFavorite':
+                  false, // No 'isFavorite' in API, so default to false
+              'imageUrl': playerJson['profileImage'] ??
+                  'https://placehold.co/100x100/333333/FFFFFF?text=Player',
+            });
+          }
+        });
+        print('Players loaded successfully from API.');
+      } else {
+        print('Failed to load players from API: ${response.statusCode}');
+        _showSnackbar(
+            'Failed to load players from API. Please try again later.');
+        // _initializeDefaultPlayers(); // Fallback to a dummy function if needed for testing
+      }
+    } catch (e) {
+      print('Error fetching players from API: $e');
+      _showSnackbar('Error fetching players. Please check your connection.');
+      // _initializeDefaultPlayers(); // Fallback on error if needed for testing
     }
-    // Example for AAKASH TIWARI as in the image
-    allPlayers.insert(0, {
-      'id': _uuid.v4(),
-      'playerName': "AAKASH TIWARI",
-      'playerCategory': "ALL ROUNDER",
-      'price': 400, // Explicitly set for this player
-      'status': 'Upcoming',
-      'isFavorite': true,
-    });
   }
 
-  // Function to initialize the default teams list
-  void _initializeDefaultTeams() {
-    teams.clear();
-    teams.addAll(_initialTeams.map((team) => Map<String, dynamic>.from(team)));
+  // Helper function for showing snackbars
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
   }
 
   // Function to load the next player for auction from the _playersToAuction list
@@ -370,14 +415,12 @@ class _AuctionPageState extends State<AuctionPage> {
         playerName = nextPlayer['playerName'] as String;
         playerCategory =
             nextPlayer['playerCategory'] as String; // Load category
+        playerImageUrl = nextPlayer['imageUrl'] as String? ??
+            'https://placehold.co/100x100/333333/FFFFFF?text=Player';
         currentBid = basePrice; // Reset bid for the new player
-        // Removed: previousBid = null;
-        // Removed: formerBid = null;
         selectedTeam = null;
         soldTo = null;
-        _bidIncrementController.text =
-            '10'; // Reset bid increment input to default
-        bidIncrement = 10; // Reset bid increment value to default
+        // The bid increment field will keep its last value
       });
       _saveAuctionStateToBackend(); // Save state after loading next player
     } else {
@@ -385,9 +428,8 @@ class _AuctionPageState extends State<AuctionPage> {
       setState(() {
         playerName = "Auction Finished!";
         playerCategory = "N/A"; // Reset category
+        playerImageUrl = 'https://placehold.co/100x100/333333/FFFFFF?text=Done';
         currentBid = basePrice;
-        // Removed: previousBid = null;
-        // Removed: formerBid = null;
         selectedTeam = null;
         soldTo = null;
         if (_auctionPhase == 'mainAuction') {
@@ -449,30 +491,67 @@ class _AuctionPageState extends State<AuctionPage> {
 
   // Function to increase the current bid
   void increaseBid(String teamName) {
-    final team = teams.firstWhere((t) => t['name'] == teamName);
-
-    if (team['wallet'] < currentBid + bidIncrement) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$teamName has insufficient funds!'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    // Only allow admin to increase bid
+    if (!_isAdmin) {
+      _showSnackbar('Only the admin can increase bids.');
       return;
     }
 
+    final team = teams.firstWhere((t) => t['name'] == teamName);
+    final playersBoughtCount =
+        soldPlayers.where((player) => player['soldTo'] == teamName).length;
+    final playersPerTeamLimit = team['players_per_team'] as int;
+
+    // Check if the team has reached its player limit
+    if (playersBoughtCount >= playersPerTeamLimit) {
+      _showSnackbar(
+          '$teamName has reached its player limit of $playersPerTeamLimit!');
+      return;
+    }
+
+    // Use a try-catch to handle potential parsing errors from the input field
+    int increment;
+    try {
+      increment = int.parse(_bidIncrementController.text);
+    } catch (e) {
+      _showSnackbar('Invalid bid increment. Please enter a number.');
+      return;
+    }
+
+    if (team['wallet'] < currentBid + increment) {
+      _showSnackbar('$teamName has insufficient funds!');
+      return;
+    }
     setState(() {
-      // Removed: formerBid = previousBid;
-      // Removed: previousBid = currentBid;
-      currentBid += bidIncrement; // Update current bid
+      currentBid += increment; // Update current bid
       selectedTeam = teamName;
     });
+    _saveAuctionStateToBackend(); // Save state after bid
+  }
+
+  // New API call to fetch a team's players
+  Future<List<Map<String, dynamic>>> _fetchTeamPlayers(int teamId) async {
+    final String url =
+        'https://localhost:7116/api/Player/GetPlayerListByTeam/$teamId';
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> playerData = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(playerData);
+      } else {
+        throw Exception('Failed to load team players from API.');
+      }
+    } catch (e) {
+      print('Error fetching team players: $e');
+      return []; // Return an empty list on error
+    }
   }
 
   // Function to show a dialog with players bought by a specific team
-  void _showTeamPlayersDialog(String teamName) {
-    final playersInTeam =
-        soldPlayers.where((player) => player['soldTo'] == teamName).toList();
+  void _showTeamPlayersDialog(String teamName, int teamId) {
+    final team = teams.firstWhere((t) => t['name'] == teamName);
+    final playersPerTeamLimit = team['players_per_team'] as int;
 
     showDialog(
       context: context,
@@ -482,8 +561,7 @@ class _AuctionPageState extends State<AuctionPage> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           title: Center(
             child: Text(
-              // Updated title to show count of players bought vs total players
-              '$teamName Players (${playersInTeam.length} / ${allPlayers.length} bought)',
+              '$teamName Players',
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
@@ -491,63 +569,116 @@ class _AuctionPageState extends State<AuctionPage> {
               ),
             ),
           ),
-          content: playersInTeam.isEmpty
-              ? const Padding(
+          content: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _fetchTeamPlayers(teamId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              } else if (snapshot.hasError) {
+                return SizedBox(
+                  height: 100,
+                  child: Center(child: Text('Error: ${snapshot.error}')),
+                );
+              } else if (snapshot.data!.isEmpty) {
+                return const Padding(
                   padding: EdgeInsets.all(8.0),
                   child: Text(
                     'No players have been bought by this team yet.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
-                )
-              : SingleChildScrollView(
+                );
+              } else {
+                final playersInTeam = snapshot.data!;
+                final boughtCount = playersInTeam.length;
+                return SizedBox(
+                  width: double.maxFinite,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: playersInTeam.map((player) {
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 2),
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.person_outline,
-                                  color: Colors.deepPurple, size: 28),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Players: ($boughtCount/$playersPerTeamLimit)',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const Divider(),
+                      Expanded(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: playersInTeam.length,
+                          itemBuilder: (context, index) {
+                            final player = playersInTeam[index];
+                            final soldPrice = soldPlayers.firstWhere(
+                              (p) => p['playerName'] == player['name'],
+                              orElse: () => {'price': 'N/A'},
+                            )['price'];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: 6, horizontal: 2),
+                              elevation: 3,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      player['playerName'],
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                    CircleAvatar(
+                                      backgroundImage: NetworkImage(player[
+                                              'profileImage'] ??
+                                          'https://placehold.co/100x100/333333/FFFFFF?text=Player'),
+                                      radius: 20,
+                                      backgroundColor: Colors.transparent,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Sold for: ${player['price']} PTS', // Changed to PTS
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
+                                    const SizedBox(width: 15),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            player['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Role: ${player['role']}',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          if (soldPrice != 'N/A')
+                                            Text(
+                                              'Sold for: $soldPrice PTS',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ],
                   ),
-                ),
+                );
+              }
+            },
+          ),
           actions: <Widget>[
             TextButton(
               style: TextButton.styleFrom(
@@ -571,24 +702,29 @@ class _AuctionPageState extends State<AuctionPage> {
 
   // Function to assign the player to the selected team
   void assignPlayer() {
-    if (selectedTeam == null) return;
-
+    if (selectedTeam == null) {
+      _showSnackbar('No team has bid yet!');
+      return;
+    }
     final team = teams.firstWhere((t) => t['name'] == selectedTeam);
+    final playersBoughtCount =
+        soldPlayers.where((player) => player['soldTo'] == selectedTeam).length;
+    final playersPerTeamLimit = team['players_per_team'] as int;
 
-    if (team['wallet'] < currentBid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$selectedTeam has insufficient funds!'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+    // Final check for player limit before assigning
+    if (playersBoughtCount >= playersPerTeamLimit) {
+      _showSnackbar(
+          '$selectedTeam has reached its player limit of $playersPerTeamLimit!');
       return;
     }
 
+    if (team['wallet'] < currentBid) {
+      _showSnackbar('$selectedTeam has insufficient funds!');
+      return;
+    }
     setState(() {
       soldTo = selectedTeam;
       team['wallet'] -= currentBid; // Deduct wallet balance
-
       final playerIndexInAllPlayers =
           allPlayers.indexWhere((p) => p['playerName'] == playerName);
       if (playerIndexInAllPlayers != -1) {
@@ -597,16 +733,14 @@ class _AuctionPageState extends State<AuctionPage> {
         _updatePlayerInBackend(
             allPlayers[playerIndexInAllPlayers]); // Individual player update
       }
-
       soldPlayers.add({
         'playerName': playerName,
         'soldTo': selectedTeam,
         'price': currentBid,
+        'imageUrl': playerImageUrl,
       });
     });
-
     _saveAuctionStateToBackend(); // Save overall state (teams, etc.)
-
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -629,7 +763,6 @@ class _AuctionPageState extends State<AuctionPage> {
   void markUnsold() {
     setState(() {
       soldTo = 'Unsold';
-
       final playerIndexInAllPlayers =
           allPlayers.indexWhere((p) => p['playerName'] == playerName);
       if (playerIndexInAllPlayers != -1) {
@@ -637,15 +770,13 @@ class _AuctionPageState extends State<AuctionPage> {
         _updatePlayerInBackend(
             allPlayers[playerIndexInAllPlayers]); // Individual player update
       }
-
       unsoldPlayers.add({
         'playerName': playerName,
         'price': basePrice,
+        'imageUrl': playerImageUrl,
       });
     });
-
     _saveAuctionStateToBackend(); // Save overall state
-
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -667,11 +798,7 @@ class _AuctionPageState extends State<AuctionPage> {
   void resetBid() {
     setState(() {
       currentBid = basePrice;
-      // Removed: previousBid = null;
-      // Removed: formerBid = null;
       selectedTeam = null;
-      _bidIncrementController.text = '10';
-      bidIncrement = 10;
     });
     _saveAuctionStateToBackend(); // Save state after bid reset
   }
@@ -700,968 +827,67 @@ class _AuctionPageState extends State<AuctionPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isCurrentUserAdmin = (_currentUserId == _adminUserId);
-
-    // Define custom colors
-    const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-    const Color accentOrange = Color(0xFFF26C4F);
-    const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
-    const Color darkBlue = Color(0xFF0D082A); // Even darker blue for elements
-    const Color bidBoxColor = Color(0xFF2A1C63); // Color for bid display boxes
-
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: lightBlue, // App bar background
           foregroundColor: Colors.white,
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // League Logo (Placeholder for now)
-              Image.network(
-                'https://placehold.co/40x40/FFD700/000000?text=MPL', // Example placeholder logo
-                height: 40,
-                width: 40,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                widget
-                    .tournamentName, // e.g., "MORAGAON PREMIER LEAGUE SEASON-04 2025"
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ],
+          title: Text(
+            widget.tournamentName,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
           ),
-          centerTitle: true,
+          actions: [
+            // Admin-only toggle button
+            if (_isActualAdmin)
+              Row(
+                children: [
+                  const Text(
+                    'Admin Mode',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  Switch(
+                    value: _isAdmin,
+                    onChanged: (value) {
+                      setState(() {
+                        _isAdmin = value;
+                      });
+                    },
+                    activeColor: accentOrange,
+                  ),
+                ],
+              ),
+          ],
           bottom: const TabBar(
-            indicatorColor: accentOrange, // Orange indicator for selected tab
-            labelColor: Colors.white, // White text for selected tab
-            unselectedLabelColor: Colors.grey, // Grey text for unselected tabs
+            labelColor: accentOrange,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: accentOrange,
             tabs: [
-              Tab(icon: Icon(Icons.gavel), text: 'Auction'),
-              Tab(icon: Icon(Icons.check_circle), text: 'Sold'),
-              Tab(icon: Icon(Icons.cancel), text: 'Unsold'),
-              Tab(icon: Icon(Icons.people), text: 'All Players'),
+              Tab(text: 'Auction'),
+              Tab(text: 'All'),
+              Tab(text: 'Sold'),
+              Tab(text: 'Unsold'),
             ],
           ),
         ),
         body: Stack(
-          // Use Stack to layer background and content
           children: [
-            // Background with lines
-            Positioned.fill(
-              child: CustomPaint(
-                painter: LinePatternPainter(
-                  backgroundColor: primaryBlue, // The main background color
-                  lineColor: lightBlue, // Color of the lines
-                ),
+            CustomPaint(
+              size: Size.infinite,
+              painter: LinePatternPainter(
+                lineColor: primaryBlue,
+                backgroundColor: darkBlue,
               ),
             ),
-            // Existing content (TabBarView)
             TabBarView(
               children: [
-                // Tab 1: Main Auction View
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          // Admin/Non-Admin Toggle - Only visible to admin
-                          if (isCurrentUserAdmin)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                const Text(
-                                  'Admin Mode',
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                                Switch(
-                                  value: _isAdmin,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _isAdmin = value;
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            'Switched to ${_isAdmin ? 'Admin' : 'Non-Admin'} Mode'),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                  activeColor: accentOrange,
-                                ),
-                              ],
-                            ),
-                          const SizedBox(height: 10),
-
-                          if (_auctionPhase == 'setup')
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (isCurrentUserAdmin)
-                                    Column(
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed:
-                                              _preparePlayersForMainAuction,
-                                          icon: const Icon(Icons.play_arrow),
-                                          label:
-                                              const Text("Start Main Auction"),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: accentOrange,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 16, horizontal: 32),
-                                            textStyle:
-                                                const TextStyle(fontSize: 20),
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10)),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 20),
-                                        if (unsoldPlayers.isNotEmpty)
-                                          ElevatedButton.icon(
-                                            onPressed:
-                                                _preparePlayersForUnsoldAuction,
-                                            icon: const Icon(Icons.redo),
-                                            label: const Text(
-                                                "Start Unsold Players Auction"),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: lightBlue,
-                                              foregroundColor: Colors.white,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: 16,
-                                                      horizontal: 32),
-                                              textStyle:
-                                                  const TextStyle(fontSize: 20),
-                                              shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          10)),
-                                            ),
-                                          ),
-                                      ],
-                                    )
-                                  else
-                                    const Text(
-                                      "Auction is yet to be started.",
-                                      style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                ],
-                              ),
-                            )
-                          else if (_auctionPhase == 'finished')
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    "Auction Finished!",
-                                    style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  if (unsoldPlayers.isNotEmpty)
-                                    ElevatedButton.icon(
-                                      onPressed:
-                                          _preparePlayersForUnsoldAuction,
-                                      icon: const Icon(Icons.redo),
-                                      label: const Text(
-                                          "Start Unsold Players Auction"),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: lightBlue,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 16, horizontal: 32),
-                                        textStyle:
-                                            const TextStyle(fontSize: 20),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10)),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        _auctionPhase = 'setup';
-                                        _currentPlayerIndex = 0;
-                                        playerName = "No Player";
-                                        playerCategory = "N/A";
-                                        currentBid = basePrice;
-                                        selectedTeam = null;
-                                        soldTo = null;
-                                        bidIncrement = 10;
-                                        _bidIncrementController.text = '10';
-                                        allPlayers.clear();
-                                        soldPlayers.clear();
-                                        unsoldPlayers.clear();
-                                        _fetchInitialPlayersFromBackend();
-                                        _initializeDefaultTeams();
-                                      });
-                                      _saveAuctionStateToBackend();
-                                    },
-                                    icon: const Icon(Icons.restart_alt),
-                                    label: const Text("Reset All Auction Data"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red[400],
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 16, horizontal: 32),
-                                      textStyle: const TextStyle(fontSize: 20),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            Column(
-                              children: [
-                                // Main Auction Display (Player Image + Details)
-                                LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    bool isWideScreen =
-                                        constraints.maxWidth > 600;
-                                    return Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Player Image Section (Left)
-                                        Expanded(
-                                          flex: isWideScreen ? 2 : 1,
-                                          child: Container(
-                                            height: isWideScreen ? 400 : 250,
-                                            decoration: BoxDecoration(
-                                              color: darkBlue.withOpacity(0.7),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.3),
-                                                  spreadRadius: 2,
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 4),
-                                                ),
-                                              ],
-                                            ),
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              child: Image.network(
-                                                'https://placehold.co/400x400/CCCCCC/000000?text=PLAYER', // Placeholder for player image
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error,
-                                                        stackTrace) =>
-                                                    Center(
-                                                  child: Icon(Icons.person,
-                                                      size: 100,
-                                                      color: Colors.grey[600]),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(width: isWideScreen ? 20 : 16),
-                                        // Auction Details Section (Right)
-                                        Expanded(
-                                          flex: isWideScreen ? 3 : 1,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              // Tournament Name (repeated from app bar for visual consistency with image)
-                                              Text(
-                                                widget.tournamentName
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              // Player Name
-                                              CustomPaint(
-                                                painter:
-                                                    AngledBackgroundPainter(
-                                                        color: accentOrange,
-                                                        angleFactor: 0.9),
-                                                child: Container(
-                                                  width: double.infinity,
-                                                  padding: const EdgeInsets
-                                                          .symmetric(
-                                                      vertical: 12,
-                                                      horizontal: 20),
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      const Text(
-                                                        'PLAYER NAME',
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        playerName
-                                                            .toUpperCase(),
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 22,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              // Player Category & Base Price
-                                              CustomPaint(
-                                                painter:
-                                                    AngledBackgroundPainter(
-                                                        color: lightBlue,
-                                                        angleFactor: 0.9),
-                                                child: Container(
-                                                  width: double.infinity,
-                                                  padding: const EdgeInsets
-                                                          .symmetric(
-                                                      vertical: 12,
-                                                      horizontal: 20),
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      const Text(
-                                                        'PLAYER CATEGORY',
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        playerCategory
-                                                            .toUpperCase(),
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 22,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      const Text(
-                                                        'BASE PRICE',
-                                                        style: TextStyle(
-                                                          color: Colors.white70,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        '$basePrice PTS',
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 20,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              // Current Bid
-                                              _buildBidDisplayBox(
-                                                'CURRENT BID',
-                                                currentBid,
-                                                Colors.greenAccent,
-                                                Icons.trending_up,
-                                              ),
-                                              const SizedBox(height: 10),
-                                              // Active Bid By
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        vertical: 10,
-                                                        horizontal: 15),
-                                                decoration: BoxDecoration(
-                                                  color: bidBoxColor,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                      color: Colors.white12),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Icon(Icons.person_pin,
-                                                        color:
-                                                            Colors.yellowAccent,
-                                                        size: 24),
-                                                    const SizedBox(width: 10),
-                                                    Expanded(
-                                                      // Use Expanded to allow text to take available space
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          const Text(
-                                                            'ACTIVE BID BY',
-                                                            style: TextStyle(
-                                                              color: Colors
-                                                                  .white70,
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                            ),
-                                                          ),
-                                                          Text(
-                                                            selectedTeam ??
-                                                                'N/A', // Display selected team or N/A
-                                                            style:
-                                                                const TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontSize:
-                                                                  18, // Keep original font size
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                            maxLines:
-                                                                1, // Limit to 1 line
-                                                            overflow: TextOverflow
-                                                                .ellipsis, // Add ellipsis for overflow
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Bid Increment Input
-                                TextField(
-                                  controller: _bidIncrementController,
-                                  keyboardType: TextInputType.number,
-                                  style: const TextStyle(color: Colors.white),
-                                  decoration: InputDecoration(
-                                    labelText: 'Increase Bid By',
-                                    labelStyle:
-                                        const TextStyle(color: Colors.white70),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide(color: lightBlue),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide(color: lightBlue),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide:
-                                          const BorderSide(color: accentOrange),
-                                    ),
-                                    prefixIcon: const Icon(Icons.add,
-                                        color: Colors.white70),
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      bidIncrement = int.tryParse(value) ?? 10;
-                                    });
-                                    _saveAuctionStateToBackend();
-                                  },
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Teams Section (Funds Remaining)
-                                const Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'FUNDS REMAINING',
-                                    style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: teams.map((team) {
-                                      return Padding(
-                                        padding:
-                                            const EdgeInsets.only(right: 16.0),
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            if (_isAdmin &&
-                                                isCurrentUserAdmin) {
-                                              increaseBid(team['name']);
-                                            } else {
-                                              _showTeamPlayersDialog(
-                                                  team['name']);
-                                            }
-                                          },
-                                          child: Column(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 30,
-                                                backgroundColor: Colors.white12,
-                                                backgroundImage:
-                                                    NetworkImage(team['logo']),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                '${team['wallet']} L', // Changed to L for Lacs as in image
-                                                style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white),
-                                              ),
-                                              SizedBox(
-                                                width: 60,
-                                                child: Text(
-                                                  team['name'],
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  textAlign: TextAlign.center,
-                                                  style: const TextStyle(
-                                                      fontSize: 10,
-                                                      color: Colors.grey),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Action Buttons (Assign, Mark Unsold, Reset Bid)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: selectedTeam != null &&
-                                                soldTo == null &&
-                                                _isAdmin &&
-                                                isCurrentUserAdmin
-                                            ? assignPlayer
-                                            : null,
-                                        icon: const Icon(Icons.gavel),
-                                        label: const Text("Assign Player"),
-                                        style: ButtonStyle(
-                                          backgroundColor: MaterialStateProperty
-                                              .resolveWith<Color?>(
-                                            (Set<MaterialState> states) {
-                                              if (states.contains(
-                                                  MaterialState.disabled)) {
-                                                return accentOrange
-                                                    .withOpacity(0.5);
-                                              }
-                                              return accentOrange;
-                                            },
-                                          ),
-                                          foregroundColor:
-                                              MaterialStateProperty.all<Color>(
-                                                  Colors.white),
-                                          padding: MaterialStateProperty.all<
-                                                  EdgeInsetsGeometry>(
-                                              const EdgeInsets.symmetric(
-                                                  vertical: 14)),
-                                          shape: MaterialStateProperty.all<
-                                                  OutlinedBorder>(
-                                              RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          10))),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: soldTo == null &&
-                                                _isAdmin &&
-                                                isCurrentUserAdmin
-                                            ? markUnsold
-                                            : null,
-                                        icon: const Icon(Icons.cancel),
-                                        label: const Text("Mark Unsold"),
-                                        style: ButtonStyle(
-                                          backgroundColor: MaterialStateProperty
-                                              .resolveWith<Color?>(
-                                            (Set<MaterialState> states) {
-                                              if (states.contains(
-                                                  MaterialState.disabled)) {
-                                                return Colors.red[400]!
-                                                    .withOpacity(0.5);
-                                              }
-                                              return Colors.red[400];
-                                            },
-                                          ),
-                                          foregroundColor:
-                                              MaterialStateProperty.all<Color>(
-                                                  Colors.white),
-                                          padding: MaterialStateProperty.all<
-                                                  EdgeInsetsGeometry>(
-                                              const EdgeInsets.symmetric(
-                                                  vertical: 14)),
-                                          shape: MaterialStateProperty.all<
-                                                  OutlinedBorder>(
-                                              RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          10))),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                ElevatedButton.icon(
-                                  onPressed: soldTo == null &&
-                                          _isAdmin &&
-                                          isCurrentUserAdmin
-                                      ? resetBid
-                                      : null,
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text("Reset Bid"),
-                                  style: ButtonStyle(
-                                    backgroundColor: MaterialStateProperty
-                                        .resolveWith<Color?>(
-                                      (Set<MaterialState> states) {
-                                        if (states
-                                            .contains(MaterialState.disabled)) {
-                                          return lightBlue.withOpacity(0.5);
-                                        }
-                                        return lightBlue;
-                                      },
-                                    ),
-                                    foregroundColor:
-                                        MaterialStateProperty.all<Color>(
-                                            Colors.white),
-                                    padding: MaterialStateProperty.all<
-                                            EdgeInsetsGeometry>(
-                                        const EdgeInsets.symmetric(
-                                            vertical: 12, horizontal: 24)),
-                                    shape: MaterialStateProperty.all<
-                                            OutlinedBorder>(
-                                        RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10))),
-                                  ),
-                                ),
-                                const SizedBox(height: 40),
-                                const Text(
-                                  'MPL PLAYER AUCTION 2025',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Tab 2: Sold Players List
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: soldPlayers.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No players sold yet.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: soldPlayers.length,
-                            itemBuilder: (context, index) {
-                              final player = soldPlayers[index];
-                              return Card(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                color: lightBlue
-                                    .withOpacity(0.7), // Card background
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.person,
-                                          color: Colors.white),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              player['playerName'],
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Sold to: ${player['soldTo']} for ${player['price']} PTS', // Changed to PTS
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-
-                // Tab 3: Unsold Players List
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: unsoldPlayers.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No players marked unsold yet.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: unsoldPlayers.length,
-                            itemBuilder: (context, index) {
-                              final player = unsoldPlayers[index];
-                              return Card(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                color: lightBlue
-                                    .withOpacity(0.7), // Card background
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.close,
-                                          color: Colors.redAccent),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              player['playerName'],
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Base Price: ${player['price']} PTS', // Changed to PTS
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-
-                // Tab 4: All Players List
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: RefreshIndicator(
-                      onRefresh: _refreshAllPlayersFromBackend,
-                      color: accentOrange, // Refresh indicator color
-                      child: allPlayers.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No players generated yet. Pull down to refresh.',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: allPlayers.length,
-                              itemBuilder: (context, index) {
-                                final player = allPlayers[index];
-                                final isFavorite =
-                                    player['isFavorite'] ?? false;
-                                return Card(
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  elevation: 3,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  color: lightBlue
-                                      .withOpacity(0.7), // Card background
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          player['status'] == 'Upcoming'
-                                              ? Icons.hourglass_empty
-                                              : player['status']
-                                                      .startsWith('Sold')
-                                                  ? Icons.check_circle
-                                                  : Icons.cancel,
-                                          color: player['status'] == 'Upcoming'
-                                              ? Colors.orange
-                                              : player['status']
-                                                      .startsWith('Sold')
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                player['playerName'],
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Category: ${player['playerCategory'] ?? 'N/A'}', // Display category
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.white70,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Base Price: ${player['price']} PTS', // Changed to PTS
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.white70,
-                                                ),
-                                              ),
-                                              if (player['status']
-                                                  .startsWith('Sold'))
-                                                Text(
-                                                  'Status: ${player['status']} for ${player['soldPrice']} PTS', // Changed to PTS
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.white70,
-                                                  ),
-                                                )
-                                              else
-                                                Text(
-                                                  'Status: ${player['status']}',
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.white70,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                        // Favorites button - Only visible to admin
-                                        if (isCurrentUserAdmin)
-                                          IconButton(
-                                            icon: Icon(
-                                              isFavorite
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color: isFavorite
-                                                  ? Colors.red
-                                                  : Colors.grey,
-                                            ),
-                                            onPressed: () =>
-                                                toggleFavorite(index),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ),
-                ),
+                _buildAuctionView(),
+                _buildPlayersTab('All'),
+                _buildPlayersTab('Sold'),
+                _buildPlayersTab('Unsold'),
               ],
             ),
           ],
@@ -1670,42 +896,534 @@ class _AuctionPageState extends State<AuctionPage> {
     );
   }
 
-  // Helper widget to build the bid display boxes
-  Widget _buildBidDisplayBox(
-      String label, int amount, Color iconColor, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-      decoration: BoxDecoration(
-        color: Color(0xFF2A1C63), // Dark blue background for bid boxes
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+  Widget _buildAuctionView() {
+    // If auction is not started, show the 'Start Auction' button (only for admin)
+    if (_auctionPhase == 'setup' && _isAdmin) {
+      return Center(
+        child: ElevatedButton(
+          onPressed: () => _preparePlayersForMainAuction(),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: accentOrange,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+          ),
+          child: const Text(
+            'Start Main Auction',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_auctionPhase == 'finished' || playerName == "Auction Finished!") {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Auction Finished!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (unsoldPlayers.isNotEmpty && _isAdmin)
+              ElevatedButton(
+                onPressed: () => _preparePlayersForUnsoldAuction(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentOrange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                ),
+                child: const Text(
+                  'Start Unsold Players Auction',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
               ),
-              Text(
-                '$amount L', // Changed to L for Lacs
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+          ],
+        ),
+      );
+    }
+
+    // The main auction view logic, now with responsive layout.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use a different layout for wide screens (e.g., web)
+        if (constraints.maxWidth > 800) {
+          return Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildPlayerInfoSection(),
+              ),
+              Expanded(
+                flex: 1,
+                child: _buildTeamBiddingSection(isWideScreen: true),
               ),
             ],
+          );
+        } else {
+          // Keep the existing mobile-first layout for smaller screens
+          return Column(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildPlayerInfoSection(),
+              ),
+              Expanded(
+                flex: 1,
+                child: _buildTeamBiddingSection(isWideScreen: false),
+              ),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  // Extracted Player Info Section for reusability
+  Widget _buildPlayerInfoSection() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (playerImageUrl != null)
+            CircleAvatar(
+              backgroundImage: NetworkImage(playerImageUrl),
+              radius: 60,
+              backgroundColor: Colors.transparent,
+            ),
+          const SizedBox(height: 20),
+          Text(
+            playerName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          Text(
+            'Category: $playerCategory',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Current Bid:',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 24,
+            ),
+          ),
+          Text(
+            '$currentBid PTS',
+            style: const TextStyle(
+              color: accentOrange,
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (selectedTeam != null)
+            Text(
+              'Highest Bid by: $selectedTeam',
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          if (_isAdmin)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Set Bid Increment:',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _bidIncrementController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: lightBlue.withOpacity(0.5),
+                      hintText: 'Enter increment amount',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        bidIncrement = int.tryParse(value) ?? 10;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  // Extracted Team Bidding Section for reusability
+  Widget _buildTeamBiddingSection({required bool isWideScreen}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Column(
+        children: [
+          if (isWideScreen)
+            // Wide screen layout (using GridView that can scroll vertically)
+            Expanded(
+              child: GridView.builder(
+                itemCount: teams.length,
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 150, // Max width of each team item
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 0.8,
+                ),
+                itemBuilder: (context, index) {
+                  final team = teams[index];
+                  final teamName = team['name'] as String;
+                  final teamId = team['id'] as int;
+                  final teamLogo = team['logo'] as String;
+                  final playersBoughtCount = soldPlayers
+                      .where((player) => player['soldTo'] == teamName)
+                      .length;
+                  final playersPerTeamLimit = team['players_per_team'] as int;
+                  final isTeamFull = playersBoughtCount >= playersPerTeamLimit;
+                  final isBiddable = _isAdmin && !isTeamFull;
+
+                  return GestureDetector(
+                    onTap: isBiddable
+                        ? () => increaseBid(teamName)
+                        : _isAdmin
+                            ? () => _showSnackbar(
+                                '$teamName has reached its player limit!')
+                            : () => _showTeamPlayersDialog(teamName, teamId),
+                    child: Column(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selectedTeam == teamName
+                                  ? accentOrange
+                                  : Colors.transparent,
+                              width: selectedTeam == teamName ? 3.0 : 0.0,
+                            ),
+                            boxShadow: selectedTeam == teamName
+                                ? [
+                                    BoxShadow(
+                                      color: accentOrange.withOpacity(0.5),
+                                      spreadRadius: 2,
+                                      blurRadius: 5,
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: CircleAvatar(
+                            backgroundImage: NetworkImage(teamLogo),
+                            backgroundColor:
+                                isTeamFull ? Colors.white10 : lightBlue,
+                            radius: 30,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          teamName,
+                          style: TextStyle(
+                            color: isTeamFull ? Colors.white38 : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${team['wallet']} PTS',
+                          style: TextStyle(
+                            color: isTeamFull ? Colors.white38 : Colors.white70,
+                            fontSize: 10,
+                          ),
+                        ),
+                        if (isTeamFull && _isAdmin)
+                          const Text(
+                            'FULL',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            // Mobile layout (using horizontally scrollable row)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: teams.map((team) {
+                  final teamName = team['name'] as String;
+                  final teamId = team['id'] as int;
+                  final teamLogo = team['logo'] as String;
+                  final playersBoughtCount = soldPlayers
+                      .where((player) => player['soldTo'] == teamName)
+                      .length;
+                  final playersPerTeamLimit = team['players_per_team'] as int;
+                  final isTeamFull = playersBoughtCount >= playersPerTeamLimit;
+                  final isBiddable = _isAdmin && !isTeamFull;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: GestureDetector(
+                      onTap: isBiddable
+                          ? () => increaseBid(teamName)
+                          : _isAdmin
+                              ? () => _showSnackbar(
+                                  '$teamName has reached its player limit!')
+                              : () => _showTeamPlayersDialog(teamName, teamId),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selectedTeam == teamName
+                                    ? accentOrange
+                                    : Colors.transparent,
+                                width: selectedTeam == teamName ? 3.0 : 0.0,
+                              ),
+                              boxShadow: selectedTeam == teamName
+                                  ? [
+                                      BoxShadow(
+                                        color: accentOrange.withOpacity(0.5),
+                                        spreadRadius: 2,
+                                        blurRadius: 5,
+                                      )
+                                    ]
+                                  : null,
+                            ),
+                            child: CircleAvatar(
+                              backgroundImage: NetworkImage(teamLogo),
+                              backgroundColor:
+                                  isTeamFull ? Colors.white10 : lightBlue,
+                              radius: 30,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            teamName,
+                            style: TextStyle(
+                              color: isTeamFull ? Colors.white38 : Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          Text(
+                            '${team['wallet']} PTS',
+                            style: TextStyle(
+                              color:
+                                  isTeamFull ? Colors.white38 : Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
+                          if (isTeamFull && _isAdmin)
+                            const Text(
+                              'FULL',
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          const Spacer(), // Pushes the buttons to the bottom
+          if (_isAdmin)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: assignPlayer,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Sell Player',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                  ElevatedButton(
+                    onPressed: markUnsold,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Mark Unsold',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                  ElevatedButton(
+                    onPressed: refreshPlayer,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 15),
+                    ),
+                    child: const Text('Next Player',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Widget to build the players list tab
+  Widget _buildPlayersTab(String status) {
+    List<Map<String, dynamic>> displayedPlayers = [];
+    if (status == 'All') {
+      displayedPlayers = allPlayers;
+    } else if (status == 'Sold') {
+      displayedPlayers = soldPlayers;
+    } else if (status == 'Unsold') {
+      displayedPlayers = unsoldPlayers;
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refreshAllPlayersFromBackend,
+      color: accentOrange,
+      backgroundColor: primaryBlue,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ListView.builder(
+          itemCount: displayedPlayers.length,
+          itemBuilder: (context, index) {
+            final player = displayedPlayers[index];
+            return Card(
+              color: lightBlue.withOpacity(0.8), // Semi-transparent background
+              margin: const EdgeInsets.symmetric(vertical: 8.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.0),
+                side: const BorderSide(color: Colors.white10),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: accentOrange,
+                  backgroundImage: NetworkImage(player['imageUrl'] ??
+                      'https://placehold.co/100x100/333333/FFFFFF?text=Player'),
+                  radius: 25,
+                ),
+                title: Text(
+                  player['playerName'],
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                subtitle: Text(
+                  player['playerCategory'],
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // The favorite button is visible to all, but only admin can update
+                    if (status == 'All' && _isAdmin)
+                      IconButton(
+                        icon: Icon(
+                          (player['isFavorite'] ?? false)
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: (player['isFavorite'] ?? false)
+                              ? accentOrange
+                              : Colors.white70,
+                        ),
+                        onPressed: () {
+                          // Only allow admin to toggle favorite status
+                          if (_isAdmin) {
+                            toggleFavorite(index);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Only the admin can mark players as favorite.'),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    Text(
+                      player['status'] == 'Sold to ${player['soldTo']}'
+                          ? 'Sold for: ${player['soldPrice']}'
+                          : player['status'],
+                      style: TextStyle(
+                        color: player['status'] == 'Unsold'
+                            ? Colors.redAccent
+                            : player['status'].startsWith('Sold')
+                                ? Colors.greenAccent
+                                : Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

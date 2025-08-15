@@ -26,12 +26,9 @@ class _AddTeamPageState extends State<AddTeamPage> {
   final TextEditingController coachController = TextEditingController();
   final TextEditingController cityController = TextEditingController();
 
-  File?
-      _profileImageFile; // Stores the File object from image_picker (not directly used for web upload)
-  String?
-      _base64Image; // To store the base64 encoded image for display and upload
-  String?
-      _imageFileName; // To store the original filename (optional for JSON payload)
+  File? _profileImageFile;
+  String? _base64Image;
+  String? _imageFileName;
 
   // Define custom colors based on the provided theme
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
@@ -44,12 +41,9 @@ class _AddTeamPageState extends State<AddTeamPage> {
     if (image != null) {
       final bytes = await image.readAsBytes();
       setState(() {
-        _profileImageFile = File(image
-            .path); // Keep the File object if needed for other platform-specific ops
-        _base64Image = base64Encode(
-            bytes); // Convert to base64 for display and sending in JSON
-        _imageFileName =
-            image.name; // Get the original filename (optional for JSON)
+        _profileImageFile = File(image.path);
+        _base64Image = base64Encode(bytes);
+        _imageFileName = image.name;
         print('Image selected path: ${image.path}');
         print('Base64 image length: ${_base64Image?.length ?? 0}');
         print('Image filename: $_imageFileName');
@@ -59,6 +53,7 @@ class _AddTeamPageState extends State<AddTeamPage> {
     }
   }
 
+  // --- API Integration Logic ---
   Future<void> _submitTeam() async {
     // Check if the form is valid before proceeding
     if (!_formKey.currentState!.validate()) {
@@ -71,31 +66,29 @@ class _AddTeamPageState extends State<AddTeamPage> {
       return; // Stop if validation fails
     }
 
-    final url =
-        Uri.parse('https://www.sportsdecor.somee.com/api/Team/SaveTeam');
+    // Replace with your actual API endpoint URL
+    const String apiUrl = 'https://sportsdecor.somee.com/api/Team/SaveTeam';
+    final url = Uri.parse(apiUrl);
 
-    // Prepare the team data as a JSON object
+    // Prepare the team data as a JSON object, matching the TeamDto structure
     final teamData = {
-      "ownerId": 3, // Replace with actual owner ID or make dynamic
+      // The OwnerId is a required field. You might need to get this from user authentication.
+      // For this example, we use a placeholder.
+      "ownerId": 1,
       "tournamentId": widget.tournamentId,
       "teamName": teamNameController.text.trim(),
       "ownerName": ownerController.text.trim(),
       "coachName": coachController.text.trim(),
       "homeCity": cityController.text.trim(),
-      // Send the base64 encoded image string.
-      // The key 'profileImageBase64' should match a string property in your C# TeamDto.
-      "profileImageBase64":
-          _base64Image ?? '', // Send empty string if no image selected
-      // You might also want to send the filename if your backend needs it
-      "profileImageFileName": _imageFileName ?? '',
+      // Send the base64 encoded image string as LogoUrl
+      "logoUrl": _base64Image,
     };
 
     try {
       final response = await http.post(
         url,
         headers: {
-          'Content-Type':
-              'application/json', // Set Content-Type to application/json
+          'Content-Type': 'application/json', // Set Content-Type for JSON
         },
         body: jsonEncode(teamData), // Encode the map to a JSON string
       );
@@ -108,23 +101,27 @@ class _AddTeamPageState extends State<AddTeamPage> {
                 content:
                     Text(responseData['message'] ?? "Team Added Successfully")),
           );
+          // Navigate back after a successful save
           Navigator.pop(context);
         } else {
+          // Handle API-specific errors
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text(responseData['message'] ?? "Failed to add team")),
           );
         }
       } else {
+        // Handle HTTP status code errors
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${response.body}")),
+          SnackBar(
+              content: Text(
+                  "Error saving team. Status: ${response.statusCode}, Body: ${response.body}")),
         );
-        print("Response status code: ${response.statusCode}");
-        print("Response body: ${response.body}");
       }
     } catch (e) {
+      // Handle network or other exceptions
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to connect: $e")),
+        SnackBar(content: Text("Failed to connect to the server: $e")),
       );
       print("Error during API call: $e");
     }
@@ -133,11 +130,11 @@ class _AddTeamPageState extends State<AddTeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
+      backgroundColor: primaryBlue,
       appBar: AppBar(
         title: const Text('Add Team', style: TextStyle(color: Colors.white)),
-        backgroundColor: lightBlue, // Set app bar to lightBlue
-        foregroundColor: Colors.white, // Set foreground (text/icons) to white
+        backgroundColor: lightBlue,
+        foregroundColor: Colors.white,
         elevation: 1,
       ),
       body: SingleChildScrollView(
@@ -151,7 +148,7 @@ class _AddTeamPageState extends State<AddTeamPage> {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white, // Text color
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 24),
@@ -159,31 +156,25 @@ class _AddTeamPageState extends State<AddTeamPage> {
                 onTap: _pickImage,
                 child: CircleAvatar(
                   radius: 60,
-                  backgroundColor:
-                      lightBlue.withOpacity(0.5), // Light blue with opacity
-                  // Use MemoryImage from base64 string for display
+                  backgroundColor: lightBlue.withOpacity(0.5),
                   backgroundImage: _base64Image != null
                       ? MemoryImage(base64Decode(_base64Image!))
                       : null,
-                  child:
-                      _base64Image == null // Check base64Image for icon display
-                          ? const Icon(Icons.camera_alt,
-                              size: 36,
-                              color: accentOrange) // Accent orange icon
-                          : null,
+                  child: _base64Image == null
+                      ? const Icon(Icons.camera_alt,
+                          size: 36, color: accentOrange)
+                      : null,
                 ),
               ),
-              const SizedBox(height: 10), // Reduced space
+              const SizedBox(height: 10),
               const Text("Tap to select team logo",
-                  style:
-                      TextStyle(color: Colors.white)), // Added text for clarity
+                  style: TextStyle(color: Colors.white)),
               const SizedBox(height: 24),
               Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
+                color: lightBlue.withOpacity(0.7),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -204,16 +195,12 @@ class _AddTeamPageState extends State<AddTeamPage> {
               ),
               const SizedBox(height: 30),
               ElevatedButton.icon(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    _submitTeam();
-                  }
-                },
+                onPressed: _submitTeam, // Call the API integration method
                 icon: const Icon(Icons.check, color: Colors.white),
                 label: const Text('Save Team',
                     style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: accentOrange, // Accent orange
+                  backgroundColor: accentOrange,
                   foregroundColor: Colors.white,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
@@ -234,22 +221,20 @@ class _AddTeamPageState extends State<AddTeamPage> {
       {required TextEditingController controller, bool isRequired = false}) {
     return TextFormField(
       controller: controller,
-      style: const TextStyle(color: Colors.white), // Input text color
+      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.white70), // Label text color
+        labelStyle:
+            const TextStyle(fontWeight: FontWeight.w500, color: Colors.white70),
         filled: true,
-        fillColor: primaryBlue.withOpacity(0.3), // Primary blue with opacity
+        fillColor: primaryBlue.withOpacity(0.3),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
-          borderSide:
-              const BorderSide(color: accentOrange, width: 2), // Accent orange
+          borderSide: const BorderSide(color: accentOrange, width: 2),
           borderRadius: BorderRadius.circular(12),
         ),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: lightBlue), // Light blue
+          borderSide: BorderSide(color: lightBlue),
           borderRadius: BorderRadius.circular(12),
         ),
       ),

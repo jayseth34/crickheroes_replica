@@ -147,8 +147,7 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
           context,
           MaterialPageRoute(
             builder: (_) => AuctionPage(
-              tournamentName: tournament.name,
-            ),
+                tournamentName: tournament.name, tournamentId: tournament.id),
           ),
         );
         break;
