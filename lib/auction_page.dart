@@ -175,7 +175,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // --- FUNCTION TO FETCH TEAMS FROM API ---
   Future<void> _fetchTeamsFromApi() async {
     final String url =
-        'https://localhost:7116/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}';
+        'https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -355,7 +355,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // Function to fetch players from the new backend API
   Future<void> _fetchInitialPlayersFromBackend() async {
     final String url =
-        'https://localhost:7116/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
+        'https://sportsdecor.somee.com/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -532,7 +532,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // New API call to fetch a team's players
   Future<List<Map<String, dynamic>>> _fetchTeamPlayers(int teamId) async {
     final String url =
-        'https://localhost:7116/api/Player/GetPlayerListByTeam/$teamId';
+        'https://sportsdecor.somee.com/api/Player/GetPlayerListByTeam/$teamId';
     try {
       final response = await http.get(Uri.parse(url));
 

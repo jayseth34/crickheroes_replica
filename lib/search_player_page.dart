@@ -41,35 +41,44 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
           Uri.parse('https://sportsdecor.somee.com/api/Player/GetAllPlayers'));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        allPlayers = data.map((e) => e as Map<String, dynamic>).toList();
+        final data = json.decode(response.body);
 
-        // Map 'profileImage' from API to 'photoUrl' for consistency with existing UI logic
-        // Also ensure 'sports' and 'tournaments' are handled, even if empty or not directly from API
-        allPlayers = allPlayers.map((player) {
-          return {
-            'name': player['name'],
-            'photoUrl': player['profileImage'], // Use profileImage from API
-            'sports':
-                [], // API response doesn't have 'sports', so provide an empty list
-            'tournaments':
-                [], // API response doesn't have 'tournaments', so provide an empty list
-            'totalMatches': 0, // Default values
-            'totalRuns': 0, // Default values
-            'goals': 0, // Default values
-            'id': player['id'], // Include other relevant fields from API
-            'tournamentId': player['tournamentId'],
-            'teamId': player['teamId'],
-            'village': player['village'],
-            'age': player['age'],
-            'address': player['address'],
-            'gender': player['gender'],
-            'handedness': player['handedness'],
-            'role': player['role'],
-            'createdAt': player['createdAt'],
-            'updatedAt': player['updatedAt'],
-          };
-        }).toList();
+        // Null check for the entire data response
+        if (data is List) {
+          // Filter out players with a null or empty name before mapping
+          final List<dynamic> validPlayers = data
+              .where((e) => e['name'] != null && e['name'].isNotEmpty)
+              .toList();
+
+          allPlayers =
+              validPlayers.map((e) => e as Map<String, dynamic>).toList();
+
+          // Null checks within the mapping process
+          allPlayers = allPlayers.map((player) {
+            return {
+              'name': player['name'] ?? 'Unknown Player',
+              'photoUrl': player['profileImage'] ?? '',
+              'sports': [],
+              'tournaments': [],
+              'totalMatches': player['totalMatches'] ?? 0,
+              'totalRuns': player['totalRuns'] ?? 0,
+              'goals': player['goals'] ?? 0,
+              'id': player['id'] ?? '',
+              'tournamentId': player['tournamentId'] ?? '',
+              'teamId': player['teamId'] ?? '',
+              'village': player['village'] ?? '',
+              'age': player['age'] ?? 0,
+              'address': player['address'] ?? '',
+              'gender': player['gender'] ?? '',
+              'handedness': player['handedness'] ?? '',
+              'role': player['role'] ?? '',
+              'createdAt': player['createdAt'] ?? '',
+              'updatedAt': player['updatedAt'] ?? '',
+            };
+          }).toList();
+        } else {
+          throw Exception('Invalid API response format.');
+        }
       } else {
         throw Exception('Failed to load players: ${response.statusCode}');
       }
@@ -94,7 +103,9 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
       } else {
         filteredPlayers = allPlayers
             .where(
-              (player) => player['name'].toLowerCase().contains(query),
+              (player) =>
+                  player['name'] != null &&
+                  player['name'].toLowerCase().contains(query),
             )
             .toList();
       }
@@ -196,13 +207,14 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
                                         primaryBlue, // Background for default image
                                     backgroundImage: player['photoUrl'] !=
                                                 null &&
-                                            player['photoUrl'].isNotEmpty
-                                        ? NetworkImage(player['photoUrl'])
+                                            player['photoUrl']!.isNotEmpty
+                                        ? NetworkImage(player['photoUrl']!)
                                         : const AssetImage(
                                                 'assets/default_profile.png') // Fallback image
                                             as ImageProvider,
                                   ),
-                                  title: Text(player['name'],
+                                  title: Text(
+                                      player['name'] ?? 'Unknown Player',
                                       style: const TextStyle(
                                           color: Colors.white)), // Text color
                                   // Subtitle for sports is intentionally removed as per request

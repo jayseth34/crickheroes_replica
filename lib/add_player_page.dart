@@ -110,7 +110,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     // Note: The original URL was localhost, which won't work in a web environment.
     // I'm using the same domain as the other APIs for consistency.
     final String apiUrl =
-        'https://localhost:7116/api/Player/GetPlayer/$playerId';
+        'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
     final url = Uri.parse(apiUrl);
 
     try {

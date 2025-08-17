@@ -67,7 +67,7 @@ class _OtpPageState extends State<OtpPage> {
     // The API URL is hardcoded as per the request, but in a real scenario,
     // you would use the _storedMobileNumber state variable.
     final String apiUrl =
-        'https://localhost:7116/api/Auth/loginWithMob?mobNo=$_storedMobileNumber';
+        'https://sportsdecor.somee.com/api/Auth/loginWithMob?mobNo=$_storedMobileNumber';
 
     try {
       final response = await http.get(Uri.parse(apiUrl));
