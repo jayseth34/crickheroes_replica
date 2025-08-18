@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'my_profile_page.dart'; // Import the MyProfilePage
 import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
 import 'package:http/http.dart' as http; // Import http package for API calls
 import 'dart:convert'; // Import convert for JSON decoding
@@ -61,20 +62,16 @@ class _OtpPageState extends State<OtpPage> {
   }
 
   // New async function to handle the API call and data storage
-  Future<void> _loginWithApi() async {
-    // NOTE: For a real app, you would use a base URL and add a dynamic number.
-    // Here, we use the provided number for demonstration.
-    // The API URL is hardcoded as per the request, but in a real scenario,
-    // you would use the _storedMobileNumber state variable.
-    final String apiUrl =
-        'https://sportsdecor.somee.com/api/Auth/loginWithMob?mobNo=$_storedMobileNumber';
+  Future<void> _loginAndFetchPlayerInfo() async {
+    // API 1: Login to get player ID
+    final String loginApiUrl =
+        'https://sportsdecor.somee.com/api/Auth/loginWithMob?mobNo=${widget.phone}';
 
     try {
-      final response = await http.get(Uri.parse(apiUrl));
+      final loginResponse = await http.get(Uri.parse(loginApiUrl));
 
-      if (response.statusCode == 200) {
-        // API call was successful. Decode the JSON response.
-        final responseData = json.decode(response.body);
+      if (loginResponse.statusCode == 200) {
+        final responseData = json.decode(loginResponse.body);
         final int? playerId = responseData['id'];
 
         if (playerId != null) {
@@ -83,28 +80,62 @@ class _OtpPageState extends State<OtpPage> {
           await prefs.setInt('playerId', playerId);
           print('Player ID ($playerId) stored successfully!');
 
-          // Navigate to the next page after successful data storage.
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
+          // API 2: Get player details using the ID
+          final String playerApiUrl =
+              'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
+          final playerResponse = await http.get(Uri.parse(playerApiUrl));
+
+          if (playerResponse.statusCode == 200) {
+            final playerData = json.decode(playerResponse.body);
+
+            // Extract the required fields and check for null/empty values
+            final name = playerData['name'] as String?;
+            final profileImage = playerData['profileImage'] as String?;
+            final mobNo = playerData['mobNo'] as String?;
+
+            final isProfileIncomplete = (name == null || name.isEmpty) ||
+                (profileImage == null || profileImage.isEmpty) ||
+                (mobNo == null || mobNo.isEmpty);
+
+            if (isProfileIncomplete) {
+              // Redirect to MyProfilePage with startInEditMode: true and pass the player data
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => MyProfilePage(
+                        startInEditMode: true, initialData: playerData)),
+              );
+            } else {
+              // Redirect to HomePage as usual if the profile is complete
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const HomePage()),
+              );
+            }
+          } else {
+            print(
+                'Player API request failed with status: ${playerResponse.statusCode}');
+            // Fallback to HomePage if player data can't be fetched
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomePage()),
+            );
+          }
         } else {
-          print('Error: "id" field not found in API response.');
+          print('Error: "id" field not found in login API response.');
         }
       } else {
-        // Handle cases where the server responded with an error status code.
-        print('API request failed with status: ${response.statusCode}');
+        print(
+            'Login API request failed with status: ${loginResponse.statusCode}');
       }
     } catch (e) {
-      // Catch any network or other errors during the API call.
       print('An error occurred during API call: $e');
     }
   }
 
   void verifyOtp() {
     if (_formKey.currentState!.validate()) {
-      // Call the new API function instead of navigating directly.
-      _loginWithApi();
+      _loginAndFetchPlayerInfo();
     }
   }
 

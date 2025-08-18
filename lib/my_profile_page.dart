@@ -1,39 +1,55 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data'; // For Uint8List
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http; // Import http package
+import 'package:http/http.dart' as http;
+import 'home_page.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MyProfilePage extends StatefulWidget {
-  const MyProfilePage({super.key});
+  final bool startInEditMode;
+  final Map<String, dynamic>? initialData;
+
+  const MyProfilePage({
+    super.key,
+    this.startInEditMode = false,
+    this.initialData,
+  });
 
   @override
   State<MyProfilePage> createState() => _MyProfilePageState();
 }
 
 class _MyProfilePageState extends State<MyProfilePage> {
-  final _formKey = GlobalKey<FormState>(); // Added for form validation
+  final _formKey = GlobalKey<FormState>();
 
-  // Initial user profile data (default values if no data is fetched)
   Map<String, dynamic> _userProfile = {
     'name': 'Guest Player',
     'photoBase64': null,
     'bio': 'Tell us about yourself!',
-    'favoriteSport': null, // Set to null initially for dropdown
+    'favoriteSport': null,
     'location': '',
-    'age': null, // Set to null for initial empty state
-    'gender': null, // Set to null for initial empty state
+    'age': null,
+    'gender': null,
     'email': '',
     'phone': '',
     'playingStyle': '',
-    'sports': [], // Empty initially
-    'tournaments': [], // Empty initially
-    'achievements': [], // Empty initially
+    'sports': [],
+    'tournaments': [],
+    'achievements': [],
+    'imageUrl': null,
+    'handedness': '',
+    'address': '',
+    'role': '',
+    'tournamentId': '',
+    'teamId': '',
   };
 
-  bool _isEditing = false; // To toggle edit mode
-  bool _isLoading = true; // To show loading indicator while fetching data
+  bool _isEditing = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
@@ -45,15 +61,20 @@ class _MyProfilePageState extends State<MyProfilePage> {
   final TextEditingController _newSportController = TextEditingController();
   final TextEditingController _newAchievementController =
       TextEditingController();
+  final TextEditingController _handednessController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _roleController = TextEditingController();
 
   String? _selectedFavoriteSport;
   String? _selectedGender;
   File? _pickedImageFile;
   String? _pickedImageBase64;
   String? _pickedImageFileName;
+  Uint8List? _pickedImageBytes;
+  bool _hasNewImage = false;
+  String? _profileImageUrl;
 
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
-  // Example list of all possible sports for favorite sport dropdown
   final List<String> _allSportsOptions = [
     'Cricket',
     'Football',
@@ -64,15 +85,34 @@ class _MyProfilePageState extends State<MyProfilePage> {
     'Tennis'
   ];
 
-  // Define custom colors based on the provided theme
-  static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
-  static const Color accentOrange = Color(0xFFF26C4F); // Orange
-  static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  static const Color primaryBlue = Color(0xFF1A0F49);
+  static const Color accentOrange = Color(0xFFF26C4F);
+  static const Color lightBlue = Color(0xFF3F277B);
+  static const Color cardColor = Color(0xFF2E1C59);
 
   @override
   void initState() {
     super.initState();
-    _fetchProfileDetails(); // Fetch profile details on page load
+    _isEditing = widget.startInEditMode;
+
+    if (widget.initialData != null) {
+      _userProfile = {
+        ..._userProfile,
+        ...widget.initialData!,
+        'sports':
+            (widget.initialData!['sports'] as List?)?.cast<String>() ?? [],
+        'achievements':
+            (widget.initialData!['achievements'] as List?)?.cast<String>() ??
+                [],
+        'tournaments': (widget.initialData!['tournaments'] as List?)
+                ?.cast<Map<String, dynamic>>() ??
+            [],
+      };
+      _isLoading = false;
+      _populateFields();
+    } else {
+      _fetchProfileDetails();
+    }
   }
 
   @override
@@ -86,101 +126,147 @@ class _MyProfilePageState extends State<MyProfilePage> {
     _playingStyleController.dispose();
     _newSportController.dispose();
     _newAchievementController.dispose();
+    _handednessController.dispose();
+    _addressController.dispose();
+    _roleController.dispose();
     super.dispose();
   }
 
-  // Method to populate controllers and state from _userProfile
   void _populateFields() {
     _nameController.text = _userProfile['name'] ?? '';
     _bioController.text = _userProfile['bio'] ?? '';
-    _locationController.text = _userProfile['location'] ?? '';
+    _locationController.text = _userProfile['village'] ?? '';
     _ageController.text = (_userProfile['age'] ?? '').toString();
     _emailController.text = _userProfile['email'] ?? '';
-    _phoneController.text = _userProfile['phone'] ?? '';
+    _phoneController.text = _userProfile['mobNo'] ?? '';
     _playingStyleController.text = _userProfile['playingStyle'] ?? '';
-    _selectedFavoriteSport = _userProfile['favoriteSport'];
-    _selectedGender = _userProfile['gender'];
+    _handednessController.text = _userProfile['handedness'] ?? '';
+    _addressController.text = _userProfile['address'] ?? '';
+    _roleController.text = _userProfile['role'] ?? '';
+
+    // Correctly handle favSport
+    final favSport = _userProfile['favSport'];
+    _selectedFavoriteSport = (favSport != null && favSport.isNotEmpty)
+        ? favSport
+        : _allSportsOptions.isNotEmpty
+            ? _allSportsOptions.first
+            : null;
+
+    // Correctly handle gender
+    final gender = _userProfile['gender'];
+    _selectedGender = (gender != null && gender.isNotEmpty)
+        ? gender
+        : _genderOptions.isNotEmpty
+            ? _genderOptions.first
+            : null;
+
     _pickedImageBase64 = _userProfile['photoBase64'];
+    _profileImageUrl = _userProfile['imageUrl'] ?? _userProfile['profileImage'];
+    _hasNewImage = false;
+
+    // Handle sports and achievements which might be JSON strings inside a list
+    final sportsData = _userProfile['sports'];
+    if (sportsData is List && sportsData.isNotEmpty) {
+      final firstElement = sportsData.first;
+      if (firstElement is String) {
+        try {
+          final decodedList = json.decode(firstElement);
+          if (decodedList is List) {
+            _userProfile['sports'] = decodedList.cast<String>();
+          }
+        } catch (e) {
+          print('Failed to decode sports string: $e');
+        }
+      }
+    }
+
+    final achievementsData = _userProfile['achievements'];
+    if (achievementsData is List && achievementsData.isNotEmpty) {
+      final firstElement = achievementsData.first;
+      if (firstElement is String) {
+        try {
+          final decodedList = json.decode(firstElement);
+          if (decodedList is List) {
+            _userProfile['achievements'] = decodedList.cast<String>();
+          }
+        } catch (e) {
+          print('Failed to decode achievements string: $e');
+        }
+      }
+    }
   }
 
   Future<void> _fetchProfileDetails() async {
     setState(() {
-      _isLoading = true; // Start loading
+      _isLoading = true;
     });
 
-    // Simulate API call to get player details
-    // Replace with your actual API endpoint for GET request
-    const String getApiUrl =
-        'https://your-api-url.com/api/user/getprofiledetails';
-    // For demonstration, we'll simulate a response
-    await Future.delayed(const Duration(seconds: 2)); // Simulate network delay
-
-    // Simulated API response (replace with actual http.get call)
-    final Map<String, dynamic>? fetchedData = {
-      'name': 'Jane Smith',
-      'photoBase64': null, // Or provide a base64 string for a default image
-      'bio': 'Avid footballer and tennis player.',
-      'favoriteSport': 'Football',
-      'location': 'London, UK',
-      'age': 28,
-      'gender': 'Female',
-      'email': 'jane.smith@example.com',
-      'phone': '+44 7123 456789',
-      'playingStyle': 'Attacking Midfielder',
-      'sports': ['Football', 'Tennis'],
-      'tournaments': [
-        {'name': 'Football City Cup', 'date': 'Sept 1 - Oct 1'},
-        {'name': 'Tennis Open 2024', 'date': 'Aug 10 - Aug 20'},
-      ],
-      'achievements': [
-        'Top Scorer Football Cup 2023',
-        'Tennis Singles Champion 2022',
-      ],
-    };
-
-    // Uncomment and use actual API call when ready
-    /*
     try {
-      final response = await http.get(Uri.parse(getApiUrl));
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        if (data != null && data.isNotEmpty) {
-          _userProfile = data;
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final playerId = prefs.getInt('playerId');
+      if (playerId == null) {
+        print('Player ID not found in SharedPreferences.');
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final String playerApiUrl =
+          'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
+      final playerResponse = await http.get(Uri.parse(playerApiUrl));
+
+      if (playerResponse.statusCode == 200) {
+        final Map<String, dynamic> fetchedData =
+            json.decode(playerResponse.body);
+        _userProfile = fetchedData;
+        _populateFields();
       } else {
-        print('Failed to fetch profile: ${response.statusCode}');
+        print('Failed to fetch player details: ${playerResponse.statusCode}');
       }
     } catch (e) {
-      print('Error fetching profile: $e');
+      print('Error fetching profile details: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
-    */
-
-    // For demonstration: if fetchedData is null or empty, _userProfile remains default
-    if (fetchedData != null && fetchedData.isNotEmpty) {
-      _userProfile = fetchedData;
-    }
-
-    setState(() {
-      _populateFields(); // Populate text controllers and state with fetched or default data
-      _isLoading = false; // End loading
-    });
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _pickedImageFile = File(image.path);
-        _pickedImageBase64 = base64Encode(bytes);
-        _pickedImageFileName = image.name;
-        print('Image selected path: ${image.path}');
-        print('Base64 image length: ${_pickedImageBase64?.length ?? 0}');
-        print('Image filename: $_pickedImageFileName');
-      });
-    } else {
-      print('No image selected.');
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (image != null) {
+        if (kIsWeb) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _pickedImageBytes = bytes;
+            _pickedImageFile = null;
+            _pickedImageFileName = image.name;
+            _hasNewImage = true;
+            _profileImageUrl = null;
+          });
+        } else {
+          setState(() {
+            _pickedImageFile = File(image.path);
+            _pickedImageBytes = null;
+            _pickedImageFileName = image.name;
+            _hasNewImage = true;
+            _profileImageUrl = null;
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -195,666 +281,525 @@ class _MyProfilePageState extends State<MyProfilePage> {
       return;
     }
 
-    // Update local _userProfile with current controller values before sending
-    _userProfile['name'] = _nameController.text;
-    _userProfile['bio'] = _bioController.text;
-    _userProfile['location'] = _locationController.text;
-    _userProfile['age'] = int.tryParse(_ageController.text) ?? 0;
-    _userProfile['gender'] = _selectedGender;
-    _userProfile['favoriteSport'] = _selectedFavoriteSport;
-    _userProfile['email'] = _emailController.text;
-    _userProfile['phone'] = _phoneController.text;
-    _userProfile['playingStyle'] = _playingStyleController.text;
-    _userProfile['photoBase64'] =
-        _pickedImageBase64; // Update with new image base64
-
     setState(() {
-      _isEditing = false; // Exit edit mode immediately
+      _isSaving = true;
     });
 
-    // Simulate API call for saving profile
-    const String apiUrl =
-        'https://your-api-url.com/api/user/updateprofile'; // Replace with your actual API endpoint
-
-    var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
-
-    // Add text fields
-    request.fields['name'] = _userProfile['name'];
-    request.fields['bio'] = _userProfile['bio'];
-    request.fields['location'] = _userProfile['location'];
-    request.fields['age'] = _userProfile['age'].toString();
-    request.fields['gender'] = _userProfile['gender'] ?? '';
-    request.fields['favoriteSport'] = _userProfile['favoriteSport'] ?? '';
-    request.fields['email'] = _userProfile['email'];
-    request.fields['phone'] = _userProfile['phone'];
-    request.fields['playingStyle'] = _userProfile['playingStyle'];
-    request.fields['sports'] =
-        jsonEncode(_userProfile['sports']); // Send list as JSON string
-    request.fields['achievements'] =
-        jsonEncode(_userProfile['achievements']); // Send list as JSON string
-
-    // Add image file if selected
-    if (_pickedImageFile != null && _pickedImageFileName != null) {
-      request.files.add(await http.MultipartFile.fromPath(
-        'profileImage', // This key should match the parameter name in your backend API (e.g., IFormFile profileImage)
-        _pickedImageFile!.path,
-        filename: _pickedImageFileName,
-      ));
-    } else if (_userProfile['photoBase64'] != null) {
-      // If no new image picked but an existing one is present (from initial load),
-      // you might want to send it as a base64 string if your backend prefers that for existing images.
-      // Or, if your backend handles missing file parts by keeping the existing image, you might not need this.
-      // For this example, we'll send it as a field if no new file is picked but a base64 exists.
-      request.fields['photoBase64'] = _userProfile['photoBase64'];
-    }
+    const String apiUrl = 'https://sportsdecor.somee.com/api/Player/SavePlayer';
 
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+
+      final prefs = await SharedPreferences.getInstance();
+      final playerId = prefs.getInt('playerId');
+
+      final fields = {
+        'Id': (playerId ?? 0).toString(),
+        'TournamentId': (_userProfile['tournamentId'] ?? '').toString(),
+        'TeamId': (_userProfile['teamId'] ?? '').toString(),
+        'Name': _nameController.text,
+        'Village': _locationController.text,
+        'Age': (int.tryParse(_ageController.text) ?? 0).toString(),
+        'Gender': _selectedGender ?? '',
+        'FavoriteSport': _selectedFavoriteSport ?? '',
+        'Email': _emailController.text,
+        'MobNo': _phoneController.text,
+        'PlayingStyle': _playingStyleController.text,
+        'Handedness': _handednessController.text,
+        'Address': _addressController.text,
+        'Role': _roleController.text,
+        'Bio': _bioController.text,
+      };
+
+      final List<String> sportsList =
+          _userProfile['sports']?.cast<String>() ?? [];
+      final List<String> achievementsList =
+          _userProfile['achievements']?.cast<String>() ?? [];
+
+      request.fields['Sports'] = jsonEncode(sportsList);
+      request.fields['Achievements'] = jsonEncode(achievementsList);
+
+      if (_hasNewImage) {
+        if (_pickedImageBytes != null) {
+          request.files.add(http.MultipartFile.fromBytes(
+            'ProfileImage',
+            _pickedImageBytes!,
+            filename: _pickedImageFileName,
+          ));
+        } else if (_pickedImageFile != null) {
+          request.files.add(await http.MultipartFile.fromPath(
+            'ProfileImage',
+            _pickedImageFile!.path,
+            filename: _pickedImageFileName,
+          ));
+        }
+      } else if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty) {
+        fields['ImageUrl'] = _profileImageUrl!;
+      }
+
+      request.fields.addAll(fields);
+
+      print('Sending request to: $apiUrl');
+      print('--- REQUEST FIELDS ---');
+      request.fields.forEach((key, value) {
+        print('$key: $value');
+      });
+      print('--- END OF FIELDS ---');
+      print('Request files: ${request.files.length} files');
+
+      final response = await request.send();
+      final respBody = await response.stream.bytesToString();
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: $respBody');
 
       if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        print('Profile update successful: $responseData');
+        final Map<String, dynamic> responseData = json.decode(respBody);
+
+        setState(() {
+          _userProfile = {
+            ..._userProfile,
+            ...responseData,
+          };
+          _profileImageUrl = responseData['imageUrl'] ?? _profileImageUrl;
+          _isSaving = false;
+          _isEditing = false;
+          _hasNewImage = false;
+        });
+
+        _populateFields();
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  responseData['message'] ?? 'Profile Saved Successfully!')),
+          const SnackBar(
+            content: Text("Profile updated successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
         );
       } else {
-        print(
-            'Profile update failed: ${response.statusCode} - ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save profile: ${response.body}')),
+          SnackBar(
+            content: Text("Failed to update profile: $respBody"),
+            backgroundColor: Colors.red,
+          ),
         );
+        setState(() {
+          _isSaving = false;
+        });
       }
     } catch (e) {
-      print('Error saving profile: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving profile: $e')),
-      );
-    }
-  }
-
-  void _addSport() {
-    final newSport = _newSportController.text.trim();
-    if (newSport.isNotEmpty && !_userProfile['sports'].contains(newSport)) {
-      setState(() {
-        _userProfile['sports'].add(newSport);
-        _newSportController.clear();
-      });
-    }
-  }
-
-  void _removeSport(String sport) {
-    setState(() {
-      _userProfile['sports'].remove(sport);
-      if (_selectedFavoriteSport == sport) {
-        _selectedFavoriteSport = null;
-      }
-    });
-  }
-
-  void _addAchievement() {
-    final newAchievement = _newAchievementController.text.trim();
-    if (newAchievement.isNotEmpty &&
-        !_userProfile['achievements'].contains(newAchievement)) {
-      setState(() {
-        _userProfile['achievements'].add(newAchievement);
-        _newAchievementController.clear();
-      });
-    }
-  }
-
-  void _removeAchievement(String achievement) {
-    setState(() {
-      _userProfile['achievements'].remove(achievement);
-    });
-  }
-
-  Widget _sectionTitle(String title) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue.shade800,
-          ),
+        SnackBar(
+          content: Text("Error saving profile: $e"),
+          backgroundColor: Colors.red,
         ),
-      ),
-    );
-  }
-
-  // Helper for text fields that can be edited
-  Widget _buildEditableTextField({
-    required TextEditingController controller,
-    required String label,
-    TextInputType keyboardType = TextInputType.text,
-    TextAlign textAlign = TextAlign.start,
-    TextStyle? textStyle,
-    bool isRequired = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: _isEditing
-          ? TextFormField(
-              controller: controller,
-              keyboardType: keyboardType,
-              textAlign: textAlign,
-              style: const TextStyle(color: Colors.white), // Input text color
-              decoration: InputDecoration(
-                labelText: label,
-                labelStyle:
-                    const TextStyle(color: Colors.white70), // Label text color
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                      color: accentOrange, width: 2), // Accent orange
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: lightBlue), // Light blue
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              validator: isRequired
-                  ? (value) =>
-                      value == null || value.trim().isEmpty ? 'Required' : null
-                  : null,
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.white70), // Text color
-                ),
-                Text(
-                  controller.text.isEmpty ? 'N/A' : controller.text,
-                  style: textStyle ??
-                      const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white), // Text color
-                ),
-              ],
-            ),
-    );
-  }
-
-  // Helper for dropdowns that can be edited
-  Widget _buildEditableDropdown({
-    required String label,
-    required String? value,
-    required List<String> options,
-    required void Function(String?) onChanged,
-    bool isRequired = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: _isEditing
-          ? DropdownButtonFormField<String>(
-              value: value,
-              style:
-                  const TextStyle(color: Colors.white), // Dropdown text color
-              dropdownColor: lightBlue, // Dropdown background color
-              decoration: InputDecoration(
-                labelText: label,
-                labelStyle:
-                    const TextStyle(color: Colors.white70), // Label text color
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                      color: accentOrange, width: 2), // Accent orange
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: lightBlue), // Light blue
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              items: options
-                  .map((opt) => DropdownMenuItem(
-                      value: opt,
-                      child: Text(opt,
-                          style: const TextStyle(
-                              color: Colors.white)))) // Item text color
-                  .toList(),
-              onChanged: onChanged,
-              validator: isRequired
-                  ? (val) =>
-                      val == null || val.trim().isEmpty ? 'Required' : null
-                  : null,
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.white70), // Text color
-                ),
-                Text(
-                  value ?? 'N/A',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white), // Text color
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildTournamentList(List<dynamic> tournaments) {
-    if (tournaments.isEmpty) {
-      return const Text("No tournaments played yet.",
-          style: TextStyle(color: Colors.white70)); // Text color
+      );
+      setState(() {
+        _isSaving = false;
+      });
     }
-    return Container(
-      decoration: BoxDecoration(
-        color: lightBlue.withOpacity(0.5), // Light blue with opacity
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: tournaments
-            .map(
-              (t) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  t['name'],
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white), // Text color
-                ),
-                subtitle: Text(
-                  t['date'],
-                  style: const TextStyle(color: Colors.white70), // Text color
-                ),
-                leading: const Icon(Icons.emoji_events,
-                    color: accentOrange), // Accent orange icon
-              ),
-            )
-            .toList(),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: primaryBlue, // Set scaffold background
-        appBar: AppBar(
-          title:
-              const Text('My Profile', style: TextStyle(color: Colors.white)),
-          centerTitle: true,
-          backgroundColor: lightBlue, // Set app bar to lightBlue
-          foregroundColor: Colors.white, // Text on primary
-        ),
-        body: const Center(
-          child:
-              CircularProgressIndicator(color: accentOrange), // Accent orange
-        ),
-      );
+    ImageProvider<Object>? avatarImageProvider;
+    if (_profileImageUrl != null && !_hasNewImage) {
+      avatarImageProvider = NetworkImage(_profileImageUrl!);
+    } else if (_hasNewImage && _pickedImageBytes != null) {
+      avatarImageProvider = MemoryImage(_pickedImageBytes!);
+    } else if (_hasNewImage && _pickedImageFile != null) {
+      avatarImageProvider = FileImage(_pickedImageFile!);
+    }
+
+    Widget? _getImageWidget() {
+      if (_hasNewImage && _pickedImageBytes != null) return null;
+      if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty) return null;
+      if (_pickedImageBase64 != null) return null;
+      return const Icon(Icons.person, size: 60, color: Colors.white);
     }
 
     return Scaffold(
-      backgroundColor: primaryBlue, // Set scaffold background
+      backgroundColor: primaryBlue,
       appBar: AppBar(
         title: const Text('My Profile', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-        backgroundColor: lightBlue, // Set app bar to lightBlue
-        foregroundColor: Colors.white, // Text on primary
+        backgroundColor: lightBlue,
         actions: [
           IconButton(
-            icon: Icon(_isEditing ? Icons.save : Icons.edit,
-                color: Colors.white), // White icon
+            icon: Icon(
+              _isEditing ? Icons.visibility : Icons.edit,
+              color: Colors.white,
+            ),
             onPressed: () {
-              if (_isEditing) {
-                _saveProfile(); // Call async save profile
-              } else {
-                setState(() {
-                  _isEditing = true; // Enter edit mode
-                });
-              }
+              if (_isSaving) return;
+              setState(() {
+                _isEditing = !_isEditing;
+              });
             },
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Form(
-          // Wrap with Form for validation
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: _isEditing ? _pickImage : null,
-                child: CircleAvatar(
-                  radius: 65,
-                  backgroundColor:
-                      lightBlue.withOpacity(0.5), // Light blue with opacity
-                  backgroundImage: _pickedImageBase64 != null
-                      ? MemoryImage(base64Decode(_pickedImageBase64!))
-                      : const AssetImage('assets/default_profile.png')
-                          as ImageProvider,
-                  child: _pickedImageBase64 == null && _isEditing
-                      ? Icon(Icons.camera_alt,
-                          size: 40, color: accentOrange) // Accent orange icon
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 14),
-              // Name (always centered, but editable)
-              _buildEditableTextField(
-                controller: _nameController,
-                label: 'Name',
-                textAlign: TextAlign.center,
-                textStyle: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white), // Text color
-                isRequired: true,
-              ),
-              const SizedBox(height: 8),
-              // Bio (always centered, but editable)
-              _buildEditableTextField(
-                controller: _bioController,
-                label: 'Bio',
-                textAlign: TextAlign.center,
-                textStyle: const TextStyle(
-                    fontSize: 16, color: Colors.white70), // Text color
-              ),
-              const SizedBox(height: 8),
-
-              Card(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle('Personal Details'),
-                      _buildEditableTextField(
-                        controller: _locationController,
-                        label: 'Location',
-                        textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.white), // Text color
-                      ),
-                      _buildEditableTextField(
-                        controller: _ageController,
-                        label: 'Age',
-                        keyboardType: TextInputType.number,
-                        textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.white), // Text color
-                      ),
-                      _buildEditableDropdown(
-                        label: 'Gender',
-                        value: _selectedGender,
-                        options: _genderOptions,
-                        onChanged: (newValue) {
-                          setState(() {
-                            _selectedGender = newValue;
-                          });
-                        },
-                      ),
-                      _buildEditableTextField(
-                        controller: _playingStyleController,
-                        label: 'Playing Style',
-                        textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.white), // Text color
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Card(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle('Contact Information'),
-                      _buildEditableTextField(
-                        controller: _emailController,
-                        label: 'Email',
-                        keyboardType: TextInputType.emailAddress,
-                        textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.white), // Text color
-                      ),
-                      _buildEditableTextField(
-                        controller: _phoneController,
-                        label: 'Phone',
-                        keyboardType: TextInputType.phone,
-                        textStyle: const TextStyle(
-                            fontSize: 16, color: Colors.white), // Text color
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              // Favorite Sport Dropdown
-              _buildEditableDropdown(
-                label: 'Favorite Sport',
-                value: _selectedFavoriteSport,
-                options:
-                    _allSportsOptions, // Use the comprehensive list of all sports
-                onChanged: (newValue) {
-                  setState(() {
-                    _selectedFavoriteSport = newValue;
-                  });
-                },
-                isRequired: true, // Favorite sport is required
-              ),
-              const SizedBox(height: 16),
-
-              // Editable Sports List
-              Card(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle('My Sports'),
-                      Wrap(
-                        spacing: 8.0,
-                        runSpacing: 4.0,
-                        children: _userProfile['sports'].map<Widget>((sport) {
-                          return Chip(
-                            label: Text(sport,
-                                style: const TextStyle(
-                                    color: primaryBlue)), // Text color
-                            backgroundColor: accentOrange
-                                .withOpacity(0.7), // Accent orange with opacity
-                            labelStyle:
-                                const TextStyle(fontWeight: FontWeight.w600),
-                            deleteIcon: _isEditing
-                                ? const Icon(Icons.cancel,
-                                    size: 18, color: Colors.white) // White icon
-                                : null,
-                            onDeleted:
-                                _isEditing ? () => _removeSport(sport) : null,
-                          );
-                        }).toList(),
-                      ),
-                      if (_isEditing) ...[
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _newSportController,
-                          style: const TextStyle(
-                              color: Colors.white), // Input text color
-                          decoration: InputDecoration(
-                            hintText: 'Add new sport',
-                            hintStyle: const TextStyle(
-                                color: Colors.white70), // Hint text color
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.add,
-                                  color: accentOrange), // Accent orange icon
-                              onPressed: _addSport,
-                            ),
-                            border: const OutlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: lightBlue), // Light blue
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(
-                                  color: accentOrange,
-                                  width: 2), // Accent orange
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: lightBlue), // Light blue
-                            ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: accentOrange))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 80,
+                            backgroundColor: lightBlue,
+                            backgroundImage: avatarImageProvider,
+                            child: _getImageWidget(),
                           ),
-                          onSubmitted: (_) => _addSport(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // Tournaments Section
-              _sectionTitle('Tournaments Played'),
-              const SizedBox(height: 10),
-              _buildTournamentList(_userProfile['tournaments']),
-
-              const SizedBox(height: 30),
-
-              // Achievements Section
-              Card(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
-                color:
-                    lightBlue.withOpacity(0.7), // Card background with opacity
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle('Achievements'),
-                      if (_isEditing) ...[
-                        if (_userProfile['achievements'].isEmpty)
-                          const Text("No achievements yet. Add some!",
-                              style: TextStyle(
-                                  color: Colors.white70)), // Text color
-                        ..._userProfile['achievements']
-                            .map<Widget>((achievement) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.star,
-                                color: accentOrange), // Accent orange icon
-                            title: Text(
-                              achievement,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white), // Text color
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _removeAchievement(achievement),
-                            ),
-                          );
-                        }).toList(),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _newAchievementController,
-                          style: const TextStyle(
-                              color: Colors.white), // Input text color
-                          decoration: InputDecoration(
-                            hintText: 'Add new achievement',
-                            hintStyle: const TextStyle(
-                                color: Colors.white70), // Hint text color
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.add,
-                                  color: accentOrange), // Accent orange icon
-                              onPressed: _addAchievement,
-                            ),
-                            border: const OutlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: lightBlue), // Light blue
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(
-                                  color: accentOrange,
-                                  width: 2), // Accent orange
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderSide:
-                                  BorderSide(color: lightBlue), // Light blue
-                            ),
-                          ),
-                          onSubmitted: (_) => _addAchievement(),
-                        ),
-                      ] else ...[
-                        _userProfile['achievements'].isEmpty
-                            ? const Text("No achievements yet.",
-                                style: TextStyle(
-                                    color: Colors.white70)) // Text color
-                            : Column(
-                                children: _userProfile['achievements']
-                                    .map<Widget>((achievement) {
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Icons.star,
-                                        color:
-                                            accentOrange), // Accent orange icon
-                                    title: Text(
-                                      achievement,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white), // Text color
-                                    ),
-                                  );
-                                }).toList(),
+                          if (_isEditing)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: InkWell(
+                                onTap: _pickImage,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: const BoxDecoration(
+                                    color: accentOrange,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                      ],
-                    ],
-                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_isEditing && _pickedImageFileName != null)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Selected: $_pickedImageFileName',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    _buildProfileSection('General Information'),
+                    _buildTextField(
+                        'Name', _nameController, _isEditing, 'Enter your name'),
+                    _buildDropdownField(
+                        'Gender', _genderOptions, _selectedGender, (value) {
+                      setState(() {
+                        _selectedGender = value as String?;
+                      });
+                    }, _isEditing),
+                    _buildTextField(
+                        'Age', _ageController, _isEditing, 'Enter your age',
+                        keyboardType: TextInputType.number),
+                    _buildTextField('Location', _locationController, _isEditing,
+                        'Enter your location'),
+                    _buildTextField('Address', _addressController, _isEditing,
+                        'Enter your address'),
+                    _buildTextField('Email', _emailController, _isEditing,
+                        'Enter your email',
+                        keyboardType: TextInputType.emailAddress),
+                    _buildTextField('Phone', _phoneController, _isEditing,
+                        'Enter your phone',
+                        keyboardType: TextInputType.phone),
+                    _buildTextField('Bio', _bioController, _isEditing,
+                        'Tell us about yourself!',
+                        maxLines: 3),
+                    const SizedBox(height: 20),
+                    _buildProfileSection('Sports Information'),
+                    _buildDropdownField('Favorite Sport', _allSportsOptions,
+                        _selectedFavoriteSport, (value) {
+                      setState(() {
+                        _selectedFavoriteSport = value as String?;
+                      });
+                    }, _isEditing),
+                    _buildTextField('Playing Style', _playingStyleController,
+                        _isEditing, 'e.g. Left arm fast, all-rounder'),
+                    _buildTextField('Handedness', _handednessController,
+                        _isEditing, 'e.g. Right-handed, Left-handed'),
+                    _buildTextField('Role', _roleController, _isEditing,
+                        'e.g. Bowler, Batsman'),
+                    const SizedBox(height: 10),
+                    _buildListEditor(
+                        'Sports',
+                        _userProfile['sports'] as List<String>,
+                        _newSportController,
+                        _isEditing),
+                    const SizedBox(height: 10),
+                    _buildListEditor(
+                        'Achievements',
+                        _userProfile['achievements'] as List<String>,
+                        _newAchievementController,
+                        _isEditing),
+                    const SizedBox(height: 20),
+                    if (_isEditing)
+                      Center(
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isSaving ? null : _saveProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentOrange,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: _isSaving
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const CircularProgressIndicator(
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Saving...',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : const Text(
+                                    'Update Profile',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
-              const SizedBox(height: 30),
-            ],
-          ),
+            ),
+    );
+  }
+
+  Widget _buildProfileSection(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: accentOrange,
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller,
+      bool isEditing, String hintText,
+      {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: controller,
+        readOnly: !isEditing,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hintText,
+          hintStyle: const TextStyle(color: Colors.white54),
+          labelStyle: const TextStyle(color: Colors.white70),
+          filled: true,
+          fillColor: isEditing ? cardColor : primaryBlue,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: accentOrange, width: 2),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        validator: (value) {
+          if (label == 'Name' && (value == null || value.isEmpty)) {
+            return 'Name is required';
+          }
+          if (label == 'Phone' &&
+              value != null &&
+              value.isNotEmpty &&
+              !RegExp(r'^\d{10}$').hasMatch(value)) {
+            return 'Enter a valid 10-digit phone number';
+          }
+          if (label == 'Email' &&
+              value != null &&
+              value.isNotEmpty &&
+              !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+            return 'Enter a valid email address';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildDropdownField<T>(String label, List<T> options, T? selectedValue,
+      Function(T?) onChanged, bool isEditing) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: DropdownButtonFormField<T>(
+        value: selectedValue,
+        onChanged: isEditing ? onChanged : null,
+        style: const TextStyle(color: Colors.white),
+        dropdownColor: cardColor,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white70),
+          filled: true,
+          fillColor: isEditing ? cardColor : primaryBlue,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: lightBlue.withOpacity(0.5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: accentOrange, width: 2),
+          ),
+        ),
+        items: options.map<DropdownMenuItem<T>>((T value) {
+          return DropdownMenuItem<T>(
+            value: value,
+            child: Text(value.toString(),
+                style: const TextStyle(color: Colors.white)),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildListEditor(String title, List<String> items,
+      TextEditingController controller, bool isEditing) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (items.isNotEmpty)
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 4.0,
+            children: items.map((item) {
+              return Chip(
+                label: Text(item, style: const TextStyle(color: Colors.white)),
+                backgroundColor: lightBlue,
+                deleteIcon: isEditing
+                    ? const Icon(Icons.close, size: 18, color: Colors.white70)
+                    : null,
+                onDeleted: isEditing
+                    ? () {
+                        setState(() {
+                          items.remove(item);
+                        });
+                      }
+                    : null,
+              );
+            }).toList(),
+          ),
+        if (isEditing)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: controller,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Add new...',
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      filled: true,
+                      fillColor: cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: lightBlue.withOpacity(0.5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: accentOrange, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                    ),
+                    onFieldSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        setState(() {
+                          items.add(value);
+                          controller.clear();
+                        });
+                      }
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle, color: accentOrange),
+                  onPressed: () {
+                    if (controller.text.isNotEmpty) {
+                      setState(() {
+                        items.add(controller.text);
+                        controller.clear();
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
