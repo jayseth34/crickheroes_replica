@@ -150,8 +150,9 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
             builder: (_) => AddPlayerPage(
               tournamentId: tournament.id,
               tournamentName: tournament.name,
-              tournament: tournament
-                  .toMap(), // Pass the Tournament object converted to a Map
+              tournament: tournament.toMap(),
+              isAdmin: widget
+                  .isAdmin, // Pass the Tournament object converted to a Map
             ),
           ),
         );

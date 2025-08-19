@@ -95,7 +95,8 @@ class HomePage extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => SearchTournamentPage(mode: 'addPlayer'),
+                  builder: (_) =>
+                      SearchTournamentPage(mode: 'addPlayer', isAdmin: true),
                 ),
               ),
             ),
