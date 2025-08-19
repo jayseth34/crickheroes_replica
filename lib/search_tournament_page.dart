@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:shared_preferences/shared_preferences.dart'; // Import the shared_preferences package
 import 'add_team_page.dart';
 import 'add_player_page.dart';
 import 'auction_page.dart';
@@ -40,8 +40,11 @@ class Tournament {
 
 class SearchTournamentPage extends StatefulWidget {
   final String mode;
+  final bool isAdmin;
 
-  const SearchTournamentPage({required this.mode, Key? key}) : super(key: key);
+  const SearchTournamentPage(
+      {required this.mode, this.isAdmin = false, Key? key})
+      : super(key: key);
 
   @override
   State<SearchTournamentPage> createState() => _SearchTournamentPageState();
@@ -58,17 +61,35 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
   static const Color accentOrange = Color(0xFFF26C4F); // Orange
   static const Color lightBlue = Color(0xFF3F277B); // Lighter purplish-blue
+  String _storedMobileNumber = '';
 
   @override
   void initState() {
     super.initState();
-    fetchTournaments();
+    _initialize();
     searchController.addListener(_filterTournaments);
   }
 
+  Future<void> _initialize() async {
+    await _loadStoredMobileNumber(); // ✅ works now
+    await fetchTournaments();
+  }
+
+  Future<void> _loadStoredMobileNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedNumber = prefs.getString('mobileNumber');
+    if (storedNumber != null) {
+      setState(() {
+        _storedMobileNumber = storedNumber;
+      });
+    }
+  }
+
   Future<void> fetchTournaments() async {
-    const apiUrl =
-        'https://sportsdecor.somee.com/api/Tournament/GetAllTournaments';
+    print(widget.isAdmin);
+    final String apiUrl = widget.isAdmin
+        ? 'https://localhost:7116/api/Tournament/GetAdminTournaments?mobNo=$_storedMobileNumber'
+        : 'https://sportsdecor.somee.com/api/Tournament/GetAllTournaments';
 
     try {
       final response = await http.get(Uri.parse(apiUrl));

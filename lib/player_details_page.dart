@@ -113,16 +113,22 @@ class PlayerDetailsPage extends StatelessWidget {
 
   // --- Helper function to parse a nested JSON array string ---
   List<String> _parseNestedList(dynamic data) {
-    // Case 1: The data is a simple List<String>
     if (data is List<String>) {
-      return data;
+      // Check if the first item is a JSON string
+      try {
+        final decoded = json.decode(data.first);
+        if (decoded is List) {
+          return decoded.whereType<String>().toList();
+        }
+      } catch (_) {
+        // If decoding fails, return the original list
+        return data;
+      }
     }
 
-    // Case 2: The data is a List with a single String containing a JSON array
     if (data is List && data.isNotEmpty && data[0] is String) {
       try {
-        final List<dynamic> decodedList = json.decode(data[0]);
-        // Filter out non-string elements just in case and convert to a list of strings
+        final decodedList = json.decode(data[0]);
         return decodedList.whereType<String>().toList();
       } catch (e) {
         print('Error decoding nested list: $e');
@@ -130,7 +136,6 @@ class PlayerDetailsPage extends StatelessWidget {
       }
     }
 
-    // Case 3: The data is null or in an unexpected format
     return [];
   }
 
@@ -315,14 +320,24 @@ class PlayerDetailsPage extends StatelessWidget {
         style: TextStyle(color: Colors.white70),
       );
     }
+
     return Column(
       children: tournaments.map((tournament) {
+        final String name =
+            tournament['tournamentName'] ?? 'Unknown Tournament';
+        final String start = tournament['startDate'] ?? '';
+        final String end = tournament['endDate'] ?? '';
+
         return ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.emoji_events, color: accentOrange),
           title: Text(
-            tournament['name'] ?? 'Unknown Tournament',
+            name,
             style: const TextStyle(color: Colors.white),
+          ),
+          subtitle: Text(
+            'From $start to $end',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         );
       }).toList(),

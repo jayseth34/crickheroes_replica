@@ -37,8 +37,8 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
     });
 
     try {
-      final response = await http.get(
-          Uri.parse('https://sportsdecor.somee.com/api/Player/GetAllPlayers'));
+      final response = await http
+          .get(Uri.parse('https://localhost:7116/api/Player/GetAllPlayers'));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

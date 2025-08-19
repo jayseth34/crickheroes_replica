@@ -96,7 +96,10 @@ class _OtpPageState extends State<OtpPage> {
             final isProfileIncomplete = (name == null || name.isEmpty) ||
                 (profileImage == null || profileImage.isEmpty) ||
                 (mobNo == null || mobNo.isEmpty);
-
+            if (profileImage != null && profileImage.isNotEmpty) {
+              await prefs.setString('profileImage', profileImage);
+              print('✅ Cached profileImage: $profileImage');
+            }
             if (isProfileIncomplete) {
               // Redirect to MyProfilePage with startInEditMode: true and pass the player data
               Navigator.pushReplacement(

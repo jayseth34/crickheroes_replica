@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'home_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 class MyProfilePage extends StatefulWidget {
   final bool startInEditMode;
@@ -194,6 +195,52 @@ class _MyProfilePageState extends State<MyProfilePage> {
         }
       }
     }
+  }
+
+  Widget _buildTournamentList(dynamic tournamentsData) {
+    final tournaments = (tournamentsData is List)
+        ? tournamentsData.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+
+    if (tournaments.isEmpty) {
+      return const Text(
+        "No tournaments yet.",
+        style: TextStyle(color: Colors.white70),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: tournaments.map((tournament) {
+        final String name =
+            tournament['tournamentName']?.toString().trim().isNotEmpty == true
+                ? tournament['tournamentName']
+                : 'Unnamed Tournament';
+
+        final String start =
+            tournament['startDate']?.toString().trim().isNotEmpty == true
+                ? tournament['startDate']
+                : 'Unknown Start';
+
+        final String end =
+            tournament['endDate']?.toString().trim().isNotEmpty == true
+                ? tournament['endDate']
+                : 'Unknown End';
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.emoji_events, color: accentOrange),
+          title: Text(
+            name,
+            style: const TextStyle(color: Colors.white),
+          ),
+          subtitle: Text(
+            'From $start to $end',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        );
+      }).toList(),
+    );
   }
 
   Future<void> _fetchProfileDetails() async {
@@ -427,6 +474,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
       appBar: AppBar(
         title: const Text('My Profile', style: TextStyle(color: Colors.white)),
         backgroundColor: lightBlue,
+        iconTheme: const IconThemeData(
+            color: Colors.white), // 👈 This makes the back arrow white
         actions: [
           IconButton(
             icon: Icon(
@@ -540,17 +589,21 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         'e.g. Bowler, Batsman'),
                     const SizedBox(height: 10),
                     _buildListEditor(
-                        'Sports',
-                        _userProfile['sports'] as List<String>,
-                        _newSportController,
-                        _isEditing),
+                      'Sports',
+                      _userProfile['sports'],
+                      _newSportController,
+                      _isEditing,
+                    ),
                     const SizedBox(height: 10),
                     _buildListEditor(
-                        'Achievements',
-                        _userProfile['achievements'] as List<String>,
-                        _newAchievementController,
-                        _isEditing),
+                      'Achievements',
+                      _userProfile['achievements'],
+                      _newAchievementController,
+                      _isEditing,
+                    ),
                     const SizedBox(height: 20),
+                    _buildProfileSection('Tournaments'),
+                    _buildTournamentList(_userProfile['tournaments']),
                     if (_isEditing)
                       Center(
                         child: SizedBox(
@@ -709,97 +762,95 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 
-  Widget _buildListEditor(String title, List<String> items,
-      TextEditingController controller, bool isEditing) {
+  Widget _buildListEditor(
+    String label,
+    dynamic itemsData,
+    TextEditingController controller,
+    bool isEditing,
+  ) {
+    final items = (itemsData is List)
+        ? itemsData.whereType<String>().toList()
+        : <String>[];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          title,
+          label,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
         const SizedBox(height: 8),
-        if (items.isNotEmpty)
+        if (items.isEmpty)
+          const Text(
+            'No entries yet.',
+            style: TextStyle(color: Colors.white70),
+          )
+        else
           Wrap(
-            spacing: 8.0,
-            runSpacing: 4.0,
+            spacing: 8,
             children: items.map((item) {
               return Chip(
-                label: Text(item, style: const TextStyle(color: Colors.white)),
+                label: Text(item),
                 backgroundColor: lightBlue,
-                deleteIcon: isEditing
-                    ? const Icon(Icons.close, size: 18, color: Colors.white70)
-                    : null,
-                onDeleted: isEditing
-                    ? () {
-                        setState(() {
-                          items.remove(item);
-                        });
-                      }
-                    : null,
+                labelStyle: const TextStyle(color: Colors.white),
               );
             }).toList(),
           ),
-        if (isEditing)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: controller,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Add new...',
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      filled: true,
-                      fillColor: cardColor,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: lightBlue.withOpacity(0.5)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: accentOrange, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+        if (isEditing) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Add new $label',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: primaryBlue,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onFieldSubmitted: (value) {
-                      if (value.isNotEmpty) {
-                        setState(() {
-                          items.add(value);
-                          controller.clear();
-                        });
-                      }
-                    },
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle, color: accentOrange),
-                  onPressed: () {
-                    if (controller.text.isNotEmpty) {
-                      setState(() {
-                        items.add(controller.text);
-                        controller.clear();
-                      });
-                    }
-                  },
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => _addToList(label, controller.text),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentOrange,
                 ),
-              ],
-            ),
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
+            ],
           ),
+        ],
       ],
     );
+  }
+
+  void _addToList(String label, String value) {
+    if (value.trim().isEmpty) return;
+
+    setState(() {
+      final key = label.toLowerCase(); // 'sports' or 'achievements'
+      final currentList = (_userProfile[key] is List)
+          ? List<String>.from(_userProfile[key])
+          : <String>[];
+
+      currentList.add(value.trim());
+      _userProfile[key] = currentList;
+    });
+
+    if (label == 'Sports') {
+      _newSportController.clear();
+    } else if (label == 'Achievements') {
+      _newAchievementController.clear();
+    }
   }
 }

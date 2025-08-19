@@ -84,7 +84,8 @@ class HomePage extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => SearchTournamentPage(mode: 'addTeam'),
+                  builder: (_) =>
+                      SearchTournamentPage(mode: 'addTeam', isAdmin: true),
                 ),
               ),
             ),
@@ -210,23 +211,22 @@ class HomePage extends StatelessWidget {
 
   Widget _buildUserHeader(BuildContext context) {
     return UserAccountsDrawerHeader(
-      decoration: const BoxDecoration(
-          color: lightBlue), // Set DrawerHeader to lightBlue
+      decoration: const BoxDecoration(color: lightBlue),
       accountName: const Text(
         "User Name",
         style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            color: Colors.white), // White text
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          color: Colors.white,
+        ),
       ),
-      accountEmail: const Text("user@example.com",
-          style: TextStyle(color: Colors.white70)), // White70 text
+      accountEmail: const SizedBox.shrink(), // 👈 hides email cleanly
       currentAccountPicture: CircleAvatar(
-        backgroundColor: accentOrange, // Set avatar background to accentOrange
-        child: Icon(
+        backgroundColor: accentOrange,
+        child: const Icon(
           Icons.person,
           size: 50,
-          color: Colors.white, // White icon
+          color: Colors.white,
         ),
       ),
       margin: EdgeInsets.zero,
