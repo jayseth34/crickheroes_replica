@@ -56,24 +56,31 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
           // Null checks within the mapping process
           allPlayers = allPlayers.map((player) {
             return {
-              'name': player['name'] ?? 'Unknown Player',
-              'photoUrl': player['profileImage'] ?? '',
-              'sports': [],
-              'tournaments': [],
-              'totalMatches': player['totalMatches'] ?? 0,
-              'totalRuns': player['totalRuns'] ?? 0,
-              'goals': player['goals'] ?? 0,
               'id': player['id'] ?? '',
               'tournamentId': player['tournamentId'] ?? '',
               'teamId': player['teamId'] ?? '',
-              'village': player['village'] ?? '',
-              'age': player['age'] ?? 0,
-              'address': player['address'] ?? '',
-              'gender': player['gender'] ?? '',
-              'handedness': player['handedness'] ?? '',
-              'role': player['role'] ?? '',
+              'name': player['name'] ?? 'Unknown Player',
+              'village': player['village'] ?? 'N/A',
+              'age': player['age'] ?? 'N/A',
+              'address': player['address'] ?? 'N/A',
+              'gender': player['gender'] ?? 'N/A',
+              'handedness': player['handedness'] ?? 'N/A',
+              'role': player['role'] ?? 'N/A',
+              'profileImage': player['profileImage'] ?? '',
               'createdAt': player['createdAt'] ?? '',
               'updatedAt': player['updatedAt'] ?? '',
+              'isSold': player['isSold'] ?? false,
+              'mobNo': player['mobNo'] ?? 'N/A',
+              'email': player['email'] ?? 'N/A',
+              'bio': player['bio'] ?? 'No bio available.',
+              'favSport': player['favSport'] ?? 'N/A',
+              'playingStyle': player['playingStyle'] ?? 'N/A',
+              'achievements':
+                  (player['achievements'] as List?)?.cast<String>() ?? [],
+              'sports': (player['sports'] as List?)?.cast<String>() ?? [],
+              'tournaments': (player['tournaments'] as List?)
+                      ?.cast<Map<String, dynamic>>() ??
+                  [],
             };
           }).toList();
         } else {
@@ -134,107 +141,106 @@ class _SearchPlayerPageState extends State<SearchPlayerPage> {
         children: [
           Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: Colors.white), // Text input color
+              style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Search player by name...',
-                hintStyle: TextStyle(color: Colors.white70), // Hint text color
-                prefixIcon: const Icon(Icons.search,
-                    color: Colors.white70), // Icon color
+                hintText: 'Search by name...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                prefixIcon: const Icon(Icons.search, color: accentOrange),
                 filled: true,
-                fillColor: lightBlue.withOpacity(0.5), // Text field background
+                fillColor: lightBlue,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none, // No border line
+                  borderRadius: BorderRadius.circular(25.0),
+                  borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: accentOrange, width: 2), // Orange border on focus
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Colors.white30), // Light border when enabled
+                  borderRadius: BorderRadius.circular(25.0),
+                  borderSide: const BorderSide(color: accentOrange, width: 2),
                 ),
               ),
             ),
           ),
-          Expanded(
-            child: isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: accentOrange)) // Loading indicator color
-                : errorMessage != null
-                    ? Center(
-                        child: Text(
-                          errorMessage!,
-                          style: const TextStyle(color: Colors.red),
+          if (isLoading)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(accentOrange),
+                ),
+              ),
+            )
+          else if (errorMessage != null)
+            Expanded(
+              child: Center(
+                child: Text(
+                  errorMessage!,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            )
+          else if (filteredPlayers.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No players found.',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredPlayers.length,
+                itemBuilder: (context, index) {
+                  final player = filteredPlayers[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 8.0, horizontal: 16.0),
+                    child: Card(
+                      elevation: 4,
+                      color: lightBlue,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.transparent,
+                          backgroundImage: (player['profileImage'] != null &&
+                                  (player['profileImage'] as String).isNotEmpty)
+                              ? NetworkImage(player['profileImage']!)
+                              : const AssetImage('assets/default_profile.png')
+                                  as ImageProvider,
                         ),
-                      )
-                    : filteredPlayers.isEmpty
-                        ? Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.person_off,
-                                  size: 60,
-                                  color: Colors.white70), // Icon for no players
-                              SizedBox(height: 10),
-                              Text(
-                                'No players found.',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white70), // Text color
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            itemCount: filteredPlayers.length,
-                            itemBuilder: (context, index) {
-                              final player = filteredPlayers[index];
-                              return Card(
-                                color: lightBlue.withOpacity(
-                                    0.7), // Card background with opacity
-                                elevation: 4,
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor:
-                                        primaryBlue, // Background for default image
-                                    backgroundImage: player['photoUrl'] !=
-                                                null &&
-                                            player['photoUrl']!.isNotEmpty
-                                        ? NetworkImage(player['photoUrl']!)
-                                        : const AssetImage(
-                                                'assets/default_profile.png') // Fallback image
-                                            as ImageProvider,
-                                  ),
-                                  title: Text(
-                                      player['name'] ?? 'Unknown Player',
-                                      style: const TextStyle(
-                                          color: Colors.white)), // Text color
-                                  // Subtitle for sports is intentionally removed as per request
-                                  trailing: const Icon(Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: accentOrange), // Accent orange
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            PlayerDetailsPage(player: player),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              );
-                            },
+                        title: Text(
+                          player['name'] ?? 'Unknown Player',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
                           ),
-          )
+                        ),
+                        subtitle: Text(
+                          player['village'] ?? 'N/A',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios,
+                            size: 16, color: accentOrange),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PlayerDetailsPage(player: player),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

@@ -246,13 +246,33 @@ class _AuctionPageState extends State<AuctionPage> {
   // Simulate API call to update a single player's state in backend
   Future<void> _updatePlayerInBackend(
       Map<String, dynamic> playerToUpdate) async {
-    final String tournamentId = widget.tournamentName;
+    print(playerToUpdate);
+    final int tournamentId = widget.tournamentId;
     final String playerId =
         playerToUpdate['id'] as String; // Use the player's unique ID
 
     final String url = '$_baseUrl/updatePlayerStatus/$tournamentId/$playerId';
-
+    int? teamId;
     try {
+      dynamic soldToValue = playerToUpdate['soldTo'];
+      if (soldToValue is int &&
+          soldToValue >= 0 &&
+          soldToValue < teams.length) {
+        teamId = teams[soldToValue]['id'] as int?;
+        soldToValue = teamId;
+      }
+
+      // If soldTo is a team name, look it up
+      if (soldToValue is String) {
+        final match = teams.firstWhere(
+          (team) => team['name'] == soldToValue,
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          teamId = match['id'] as int?;
+          soldToValue = teamId;
+        }
+      }
       final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
@@ -263,6 +283,7 @@ class _AuctionPageState extends State<AuctionPage> {
           'status': playerToUpdate['status'], // 'Sold', 'Unsold', 'Upcoming'
           'soldPrice': playerToUpdate['soldPrice'], // Only if applicable
           'playerCategory': playerToUpdate['playerCategory'], // Update category
+          'teamId': teamId ?? 0
         }),
       );
 
@@ -350,6 +371,90 @@ class _AuctionPageState extends State<AuctionPage> {
       _fetchTeamsFromApi(); // Fallback to fetching teams from API
       _saveAuctionStateToBackend(); // Save this initial state to backend
     }
+  }
+
+  void _showShareOverlayDialog() async {
+    final int tournamentId = widget.tournamentId;
+    String inputLink = '';
+    String? generatedLink;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Enter target link for overlay'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'https://example.com/page or YouTube link',
+                    ),
+                    onChanged: (value) => inputLink = value.trim(),
+                  ),
+                  if (generatedLink != null) ...[
+                    const SizedBox(height: 16),
+                    SelectableText(
+                      generatedLink!,
+                      style: const TextStyle(color: Colors.blue),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Validate input
+                    final parsed = Uri.tryParse(inputLink);
+                    if (inputLink.isEmpty ||
+                        parsed == null ||
+                        !parsed.isAbsolute) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Please enter a valid URL')),
+                      );
+                      return;
+                    }
+
+                    String finalLink = inputLink;
+
+                    // Auto-convert YouTube links to embed format
+                    if (parsed.host.contains('youtu.be')) {
+                      final videoId = parsed.pathSegments.isNotEmpty
+                          ? parsed.pathSegments.first
+                          : '';
+                      if (videoId.isNotEmpty) {
+                        finalLink =
+                            'https://www.youtube.com/embed/$videoId?autoplay=1&mute=1&loop=1&playlist=$videoId';
+                      }
+                    } else if (parsed.host.contains('youtube.com') &&
+                        parsed.queryParameters['v'] != null) {
+                      final videoId = parsed.queryParameters['v']!;
+                      finalLink =
+                          'https://www.youtube.com/embed/$videoId?autoplay=1&mute=1&loop=1&playlist=$videoId';
+                    }
+
+                    // Generate overlay link with tournamentId
+                    setState(() {
+                      generatedLink =
+                          'https://sportyfyoverlay.netlify.app/?target=${Uri.encodeComponent(finalLink)}&tournamentId=$tournamentId';
+                    });
+                  },
+                  child: const Text('Generate'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   // Function to fetch players from the new backend API
@@ -723,6 +828,7 @@ class _AuctionPageState extends State<AuctionPage> {
       return;
     }
     setState(() {
+      print(selectedTeam);
       soldTo = selectedTeam;
       team['wallet'] -= currentBid; // Deduct wallet balance
       final playerIndexInAllPlayers =
@@ -900,23 +1006,49 @@ class _AuctionPageState extends State<AuctionPage> {
     // If auction is not started, show the 'Start Auction' button (only for admin)
     if (_auctionPhase == 'setup' && _isAdmin) {
       return Center(
-        child: ElevatedButton(
-          onPressed: () => _preparePlayersForMainAuction(),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: accentOrange,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+              onPressed: () => _preparePlayersForMainAuction(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentOrange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              ),
+              child: const Text(
+                'Start Main Auction',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-          ),
-          child: const Text(
-            'Start Main Auction',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
+            const SizedBox(height: 12), // spacing between buttons
+            ElevatedButton(
+              onPressed: _showShareOverlayDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentOrange, // same as Start Main Auction
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              ),
+              child: const Text(
+                'Share Overlay',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
@@ -1311,19 +1443,7 @@ class _AuctionPageState extends State<AuctionPage> {
                     ),
                     child: const Text('Mark Unsold',
                         style: TextStyle(color: Colors.white)),
-                  ),
-                  ElevatedButton(
-                    onPressed: refreshPlayer,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 15),
-                    ),
-                    child: const Text('Next Player',
-                        style: TextStyle(color: Colors.white)),
-                  ),
+                  )
                 ],
               ),
             ),

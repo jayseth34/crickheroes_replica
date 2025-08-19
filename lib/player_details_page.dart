@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 
 class PlayerDetailsPage extends StatelessWidget {
   final Map<String, dynamic> player;
@@ -12,20 +13,27 @@ class PlayerDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Extract player data with default values for safety
+    // Extract player data with default values for safety and correct data types
     final String name = player['name'] ?? 'Unknown Player';
-    final String bio =
-        'No bio available.'; // Not in new data, using a default static value
+    final String bio = player['bio'] ?? 'No bio available.';
     final String role = player['role'] ?? 'N/A';
     final String location = player['village'] ?? 'N/A';
     final String address = player['address'] ?? 'N/A';
-    final int age = player['age'] ?? 'N/A';
+    final String age = (player['age'] is int)
+        ? player['age'].toString()
+        : player['age']?.toString() ?? 'N/A';
     final String gender = player['gender'] ?? 'N/A';
     final String handedness = player['handedness'] ?? 'N/A';
     final String phone = player['mobNo'] ?? 'N/A';
-    final String email = 'N/A'; // Not in new data
-    final List<String> sports = []; // Not in new data, using empty list
-    final List<String> achievements = []; // Not in new data, using empty list
+    final String email = player['email'] ?? 'N/A';
+    final String favSport = player['favSport'] ?? 'N/A';
+    final String playingStyle = player['playingStyle'] ?? 'N/A';
+
+    final List<String> sports = _parseNestedList(player['sports']);
+    final List<String> achievements = _parseNestedList(player['achievements']);
+    final List<Map<String, dynamic>> tournaments =
+        (player['tournaments'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
     final String photoUrl = player['profileImage'] ??
         'https://placehold.co/200x200/F26C4F/1A0F49?text=Player'; // Placeholder image
 
@@ -68,6 +76,14 @@ class PlayerDetailsPage extends StatelessWidget {
                     icon: Icons.handshake,
                     label: 'Handedness',
                     value: handedness),
+                _buildInfoRow(
+                    icon: Icons.sports,
+                    label: 'Favorite Sport',
+                    value: favSport),
+                _buildInfoRow(
+                    icon: Icons.sports_tennis,
+                    label: 'Playing Style',
+                    value: playingStyle),
                 _buildInfoRow(icon: Icons.phone, label: 'Phone', value: phone),
                 _buildInfoRow(icon: Icons.email, label: 'Email', value: email),
               ],
@@ -82,6 +98,10 @@ class PlayerDetailsPage extends StatelessWidget {
                 _buildSectionTitle('Achievements'),
                 const SizedBox(height: 10),
                 _buildAchievementList(achievements),
+                const SizedBox(height: 20),
+                _buildSectionTitle('Tournaments'),
+                const SizedBox(height: 10),
+                _buildTournamentList(tournaments),
               ],
             ),
             const SizedBox(height: 30),
@@ -89,6 +109,29 @@ class PlayerDetailsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // --- Helper function to parse a nested JSON array string ---
+  List<String> _parseNestedList(dynamic data) {
+    // Case 1: The data is a simple List<String>
+    if (data is List<String>) {
+      return data;
+    }
+
+    // Case 2: The data is a List with a single String containing a JSON array
+    if (data is List && data.isNotEmpty && data[0] is String) {
+      try {
+        final List<dynamic> decodedList = json.decode(data[0]);
+        // Filter out non-string elements just in case and convert to a list of strings
+        return decodedList.whereType<String>().toList();
+      } catch (e) {
+        print('Error decoding nested list: $e');
+        return [];
+      }
+    }
+
+    // Case 3: The data is null or in an unexpected format
+    return [];
   }
 
   // --- Reusable Widgets for Profile & Details Pages ---
@@ -101,25 +144,19 @@ class PlayerDetailsPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: lightBlue,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: 70,
-            backgroundColor: primaryBlue,
-            backgroundImage: NetworkImage(photoUrl),
-            onBackgroundImageError: (exception, stackTrace) {
-              // This is a simple fallback. A more robust solution might use a stateful widget
-              // to update the image provider to a placeholder image after a load error.
-            },
+            radius: 60,
+            backgroundColor: accentOrange,
+            child: CircleAvatar(
+              radius: 56,
+              backgroundImage: NetworkImage(photoUrl),
+              onBackgroundImageError: (exception, stackTrace) {
+                print('Error loading image: $exception');
+              },
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -129,66 +166,65 @@ class PlayerDetailsPage extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
-            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             bio,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 16,
               color: Colors.white70,
               fontStyle: FontStyle.italic,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard(
-      {required String title, required List<Widget> children}) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: lightBlue.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+  Widget _buildInfoCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Card(
+        color: const Color(0xFF2E1C59),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const Divider(color: Colors.white54, height: 20),
+              ...children,
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const Divider(color: Colors.white38, height: 20, thickness: 1),
-          ...children,
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoRow(
-      {required IconData icon, required String label, required String value}) {
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: accentOrange, size: 24),
-          const SizedBox(width: 15),
+          Icon(icon, color: accentOrange, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,15 +232,16 @@ class PlayerDetailsPage extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white70,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   value,
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w500,
                     color: Colors.white,
                   ),
                 ),
@@ -264,10 +301,28 @@ class PlayerDetailsPage extends StatelessWidget {
           leading: const Icon(Icons.star, color: accentOrange),
           title: Text(
             achievement,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+            style: const TextStyle(color: Colors.white),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTournamentList(List<Map<String, dynamic>> tournaments) {
+    if (tournaments.isEmpty) {
+      return const Text(
+        "No tournaments yet.",
+        style: TextStyle(color: Colors.white70),
+      );
+    }
+    return Column(
+      children: tournaments.map((tournament) {
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.emoji_events, color: accentOrange),
+          title: Text(
+            tournament['name'] ?? 'Unknown Tournament',
+            style: const TextStyle(color: Colors.white),
           ),
         );
       }).toList(),
