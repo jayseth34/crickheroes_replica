@@ -7,6 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:excel/excel.dart' as xls;
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
+import 'dart:html' as html;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class MyProfilePage extends StatelessWidget {
   const MyProfilePage({Key? key}) : super(key: key);
@@ -68,7 +74,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   String _storedMobileNumber = '';
 
   // Bulk upload variables
-  File? _selectedFile;
+  PlatformFile? _selectedFile;
   bool _isBulkUploading = false;
 
   // Define custom colors based on the provided theme
@@ -95,11 +101,11 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     super.dispose();
   }
 
-  // New method to load player ID and fetch data
+  // Load player ID and fetch data
   Future<void> _loadAndFetchPlayerData() async {
     final prefs = await SharedPreferences.getInstance();
     final int playerId = prefs.getInt('playerId') ?? 0;
-    print(playerId);
+    print('Player ID: $playerId');
     final storedNumber = prefs.getString('mobileNumber');
     if (storedNumber != null) {
       setState(() {
@@ -116,8 +122,12 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     }
   }
 
-  // New method to fetch player data from API
+  // Fetch player data from API
   Future<void> _fetchPlayerData(int playerId) async {
+    setState(() {
+      _isLoading = true;
+    });
+
     final String apiUrl =
         'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
     final url = Uri.parse(apiUrl);
@@ -128,8 +138,11 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         _bindPlayerData(responseData);
+      } else {
+        print('Failed to fetch player data. Status: ${response.statusCode}');
       }
     } catch (e) {
+      print('Error fetching player data: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error fetching player data: $e")),
       );
@@ -176,45 +189,41 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     });
   }
 
-  // Bulk Upload Methods
+  // FIXED: Pick Excel file using PlatformFile
   Future<void> _pickExcelFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
         allowMultiple: false,
+        withData: true, // Important: This loads file data into memory
       );
 
-      if (result != null && result.files.single.path != null) {
-        final selectedFile = File(result.files.single.path!);
+      if (result != null && result.files.isNotEmpty) {
+        final platformFile = result.files.first;
 
-        // Verify file exists and can be read
-        if (await selectedFile.exists()) {
-          final fileSize = await selectedFile.length();
-          if (fileSize > 0) {
-            setState(() {
-              _selectedFile = selectedFile;
-            });
+        // Check if we have either file path or bytes
+        if (platformFile.bytes != null || platformFile.path != null) {
+          setState(() {
+            _selectedFile = platformFile;
+          });
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'Selected: ${path.basename(_selectedFile!.path)} (${(fileSize / 1024).toStringAsFixed(1)} KB)'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          } else {
-            throw Exception('Selected file is empty');
-          }
+          final fileSize = platformFile.size;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Selected: ${platformFile.name} (${(fileSize / 1024).toStringAsFixed(1)} KB)'),
+              backgroundColor: Colors.green,
+            ),
+          );
         } else {
-          throw Exception('Selected file does not exist');
+          throw Exception('Could not access file data');
         }
       } else {
-        // User cancelled file selection
         print('File selection cancelled by user');
       }
     } catch (e) {
-      print('Error in _pickExcelFile: $e'); // Add logging
+      print('Error in _pickExcelFile: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error selecting file: ${e.toString()}'),
@@ -222,7 +231,6 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
         ),
       );
 
-      // Reset selected file on error
       setState(() {
         _selectedFile = null;
       });
@@ -231,26 +239,38 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
 
   Future<void> _downloadSampleFile() async {
     try {
-      final url = Uri.parse(
-          'https://sportsdecor.somee.com/api/Player/DownloadSampleTemplate');
+      final url =
+          Uri.parse('https://localhost:7116/api/Player/DownloadSampleTemplate');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        // In a real app, you would save this to Downloads folder or open it
-        // For now, just show a success message
+        final bytes = response.bodyBytes;
+
+        // ✅ Save to device storage
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/PlayerImportSample.xlsx';
+        final file = File(filePath);
+        await file.writeAsBytes(bytes);
+
+        // ✅ Open the file
+        final result = await OpenFile.open(filePath);
+
+        // ✅ Feedback
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sample template downloaded successfully!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(result.type == ResultType.done
+                ? 'Sample template downloaded and opened!'
+                : 'Downloaded, but could not open file.'),
+            backgroundColor:
+                result.type == ResultType.done ? Colors.green : Colors.orange,
           ),
         );
-
-        // You can implement actual file download logic here
-        // For example, using path_provider to save to Downloads folder
       } else {
-        throw Exception('Failed to download sample template');
+        throw Exception(
+            'Failed to download sample. Status: ${response.statusCode}');
       }
     } catch (e) {
+      print('Download error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error downloading sample: $e'),
@@ -260,6 +280,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     }
   }
 
+  // FIXED: Bulk upload with proper multipart request
   Future<void> _bulkUploadPlayers() async {
     if (_selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -276,35 +297,62 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     });
 
     try {
-      final url = Uri.parse(
-          'https://sportsdecor.somee.com/api/Player/BulkUploadPlayers');
+      final url = Uri.parse('https://localhost:7116/api/Player/UploadExcel');
+
       var request = http.MultipartRequest('POST', url);
+
+      // Add headers
+      request.headers['Content-Type'] = 'multipart/form-data';
 
       // Add tournament ID as a field
       request.fields['TournamentId'] = widget.tournamentId.toString();
 
       // Add the Excel file
-      var fileStream = http.ByteStream(_selectedFile!.openRead());
-      var fileLength = await _selectedFile!.length();
-      var multipartFile = http.MultipartFile(
-        'ExcelFile', // This should match the backend parameter name
-        fileStream,
-        fileLength,
-        filename: path.basename(_selectedFile!.path),
-      );
+      http.MultipartFile multipartFile;
+
+      if (_selectedFile!.bytes != null) {
+        // Use bytes if available (web platform)
+        multipartFile = http.MultipartFile.fromBytes(
+          'ExcelFile', // Parameter name expected by backend
+          _selectedFile!.bytes!,
+          filename: _selectedFile!.name,
+        );
+      } else if (_selectedFile!.path != null) {
+        // Use file path if available (mobile platform)
+        final file = File(_selectedFile!.path!);
+        multipartFile = await http.MultipartFile.fromPath(
+          'ExcelFile',
+          file.path,
+          filename: _selectedFile!.name,
+        );
+      } else {
+        throw Exception('No file data available');
+      }
+
       request.files.add(multipartFile);
+
+      print('Sending request with:');
+      print('Tournament ID: ${widget.tournamentId}');
+      print('File name: ${_selectedFile!.name}');
+      print('File size: ${_selectedFile!.size} bytes');
 
       // Send the request
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        if (responseData['success'] == true) {
+
+        if (responseData['success'] == true ||
+            responseData['Success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                  responseData['message'] ?? 'Players uploaded successfully!'),
+              content: Text(responseData['message'] ??
+                  responseData['Message'] ??
+                  'Players uploaded successfully!'),
               backgroundColor: Colors.green,
             ),
           );
@@ -314,13 +362,14 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
             _selectedFile = null;
           });
 
-          // Optionally navigate back
+          // Navigate back
           Navigator.pop(context);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content:
-                  Text(responseData['message'] ?? 'Failed to upload players'),
+              content: Text(responseData['message'] ??
+                  responseData['Message'] ??
+                  'Failed to upload players'),
               backgroundColor: Colors.red,
             ),
           );
@@ -328,15 +377,17 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Upload failed. Status Code: ${response.statusCode}'),
+            content: Text(
+                'Upload failed. Status: ${response.statusCode}\nError: ${response.body}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
+      print('Bulk upload error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Error during upload: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -345,6 +396,78 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
         _isBulkUploading = false;
       });
     }
+  }
+
+  Future<void> generateSampleExcel() async {
+    final excel = xls.Excel
+        .createExcel(); // Creates a workbook with a default sheet named 'Sheet1'
+    final sheet = excel['Players'];
+    excel.setDefaultSheet('Players'); // ✅ This is the missing piece
+
+    sheet.appendRow([
+      'Name',
+      'Age',
+      'Role',
+      'MobNo',
+      'Village',
+      'Address',
+      'Gender',
+      'Handedness',
+      'ImageUrl (optional)'
+    ]);
+
+    sheet.appendRow([
+      'Virat Kohli',
+      '35',
+      'Batsman',
+      '9876543210',
+      'Delhi',
+      'Sector 21',
+      'Male',
+      'Right-handed',
+      'https://cdn.example.com/images/virat.jpg'
+    ]);
+    sheet.appendRow([
+      'Shreyas Iyer',
+      '35',
+      'Batsman',
+      '9876543219',
+      'Delhi',
+      'Sector 21',
+      'Male',
+      'Left-handed',
+      'https://cdn.example.com/images/virat.jpg'
+    ]);
+
+    final fileBytes = Uint8List.fromList(excel.encode()!);
+    const filename = 'PlayerImportSample.xlsx';
+
+    if (kIsWeb) {
+      // ✅ Web download
+      final blob = html.Blob([fileBytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute("download", filename)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+    } else {
+      // ✅ Mobile/Desktop download
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/$filename';
+      final file = File(filePath)..createSync(recursive: true);
+      await file.writeAsBytes(fileBytes);
+
+      await OpenFile.open(filePath);
+    }
+  }
+
+  void downloadExcelWeb(Uint8List bytes, String filename) {
+    final blob = html.Blob([bytes]);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute("download", filename)
+      ..click();
+    html.Url.revokeObjectUrl(url);
   }
 
   void _checkProfileCompletionAndSave() {
@@ -363,7 +486,6 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                // Redirect to MyProfilePage
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const MyProfilePage()),
@@ -517,7 +639,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _downloadSampleFile,
+              onPressed: generateSampleExcel,
               icon: const Icon(Icons.download, color: Colors.white),
               label: const Text(
                 'Download Sample Template',
@@ -556,7 +678,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                 const SizedBox(height: 12),
                 Text(
                   _selectedFile != null
-                      ? 'Selected: ${path.basename(_selectedFile!.path)}'
+                      ? 'Selected: ${_selectedFile!.name}'
                       : 'No file selected',
                   style: const TextStyle(
                     color: Colors.white,
@@ -564,6 +686,16 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                if (_selectedFile != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Size: ${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
                   onPressed: _pickExcelFile,
@@ -607,7 +739,9 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: accentOrange,
+                backgroundColor: _selectedFile != null && !_isBulkUploading
+                    ? accentOrange
+                    : Colors.grey,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

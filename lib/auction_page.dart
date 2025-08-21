@@ -460,7 +460,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // Function to fetch players from the new backend API
   Future<void> _fetchInitialPlayersFromBackend() async {
     final String url =
-        'https://sportsdecor.somee.com/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
+        'https://localhost:7116/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
 
     try {
       final response = await http.get(Uri.parse(url));
