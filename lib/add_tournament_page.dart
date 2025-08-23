@@ -315,7 +315,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       _loading = true;
     });
 
-    final url = 'https://sportsdecor.somee.com/api/Tournament/SaveTournament';
+    final url = 'https://localhost:7116/api/Tournament/SaveTournament';
 
     try {
       // Use http.MultipartRequest for form-data with files

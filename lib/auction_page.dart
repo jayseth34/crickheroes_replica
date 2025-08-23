@@ -83,7 +83,8 @@ class AuctionPage extends StatefulWidget {
   State<AuctionPage> createState() => _AuctionPageState();
 }
 
-class _AuctionPageState extends State<AuctionPage> {
+class _AuctionPageState extends State<AuctionPage>
+    with SingleTickerProviderStateMixin {
   // Define custom colors at the class level to be accessible everywhere
   static const Color primaryBlue = Color(0xFF1A0F49); // Darker purplish-blue
   static const Color accentOrange = Color(0xFFF26C4F);
@@ -135,7 +136,8 @@ class _AuctionPageState extends State<AuctionPage> {
   String _currentUserId =
       ''; // Dummy current user ID, change for testing non-admin
   String _storedMobileNumber = '';
-
+  late TabController _tabController;
+  late Future<List<Map<String, dynamic>>> _soldPlayersFuture;
   @override
   void initState() {
     super.initState();
@@ -143,12 +145,87 @@ class _AuctionPageState extends State<AuctionPage> {
     _loadStoredMobileNumber(); // Load the mobile number from SharedPreferences
     // Load initial state from backend after getting the mobile number
     _loadAuctionStateFromBackend();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 2) {
+        // Sold tab index
+        setState(() {
+          _soldPlayersFuture = _fetchSoldPlayers();
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _bidIncrementController.dispose();
     super.dispose();
+  }
+
+  Future<void> _markPlayerAsSoldToApi({
+    required int tournamentId,
+    required int teamId,
+    required int playerId,
+    required int soldPrice,
+  }) async {
+    final String url = 'https://localhost:7116/api/Player/SellPlayer';
+
+    // Prepare form data (as x-www-form-urlencoded or JSON as backend expects)
+    final Map<String, dynamic> body = {
+      'TournamentId': tournamentId,
+      'TeamId': teamId,
+      'id': playerId,
+      'SoldPrice': soldPrice,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200) {
+        print('Player sold successfully via API.');
+      } else {
+        print('Failed to mark player as sold. Status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error when marking player as sold: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSoldPlayers() async {
+    final String url =
+        'https://localhost:7116/api/Player/GetAllPlayersByTourId/${widget.tournamentId}';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final List<dynamic> playerData = json.decode(response.body);
+        // Filter only sold players
+        return playerData
+            .where((player) => player['isSold'] == true)
+            .map<Map<String, dynamic>>((player) => {
+                  'id': player['id'].toString(),
+                  'playerName': player['name'],
+                  'playerCategory': player['role'],
+                  'soldPrice': player['soldPrice'] ?? 0,
+                  'imageUrl': player['profileImage'] ??
+                      'https://placehold.co/100x100/333333/FFFFFF?text=Player',
+                  // Add other fields as needed
+                })
+            .toList();
+      } else {
+        _showSnackbar('Failed to load sold players. Please try again later.');
+        return [];
+      }
+    } catch (e) {
+      print('Error fetching sold players: $e');
+      _showSnackbar(
+          'Error fetching sold players. Please check your connection.');
+      return [];
+    }
   }
 
   // --- NEW: FUNCTION TO LOAD STORED MOBILE NUMBER ---
@@ -169,6 +246,23 @@ class _AuctionPageState extends State<AuctionPage> {
         _isAdmin = false;
         _currentUserId = '';
       });
+    }
+  }
+
+  Future<void> markPlayerFavourite(int playerId) async {
+    final url =
+        'https://localhost:7116/api/Player/IsFavourite/$playerId'; // Adjust the URL accordingly
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        print('Player favourite toggled successfully.');
+      } else {
+        print('Failed to toggle favourite: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error toggling favourite: $e');
     }
   }
 
@@ -362,14 +456,14 @@ class _AuctionPageState extends State<AuctionPage> {
         // Fallback to fetching new data if API call fails or returns non-200
         _fetchInitialPlayersFromBackend();
         _fetchTeamsFromApi(); // Fallback to fetching teams from API
-        _saveAuctionStateToBackend(); // Save this initial state to backend
+        // _saveAuctionStateToBackend(); // Save this initial state to backend
       }
     } catch (e) {
       print('Error loading auction state from backend: $e');
       // Fallback to fetching new data on network error
       _fetchInitialPlayersFromBackend();
       _fetchTeamsFromApi(); // Fallback to fetching teams from API
-      _saveAuctionStateToBackend(); // Save this initial state to backend
+      // _saveAuctionStateToBackend(); // Save this initial state to backend
     }
   }
 
@@ -464,41 +558,41 @@ class _AuctionPageState extends State<AuctionPage> {
 
     try {
       final response = await http.get(Uri.parse(url));
-
       if (response.statusCode == 200) {
         final List<dynamic> playerData = json.decode(response.body);
+        List<Map<String, dynamic>> players = [];
+
+        for (var playerJson in playerData) {
+          // Fetch favorite status from backend API for each player
+          final playerId = playerJson['id'];
+          // final isFav = await isPlayerFavourite(playerId);
+
+          players.add({
+            'id': playerId.toString(),
+            'playerName': playerJson['name'],
+            'playerCategory': playerJson['role'],
+            'price': playerJson['isSold'] ? 0 : basePrice,
+            'status': playerJson['isSold'] ? 'Sold' : 'Upcoming',
+            'isFavorite': playerJson['isFav'],
+            'imageUrl': playerJson['profileImage'] ??
+                'https://placehold.co/100x100/333333/FFFFFF?text=Player',
+          });
+        }
+
         setState(() {
           allPlayers.clear();
-          for (var playerJson in playerData) {
-            allPlayers.add({
-              'id': playerJson['id'].toString(), // Use id from API
-              'playerName': playerJson['name'], // Map 'name' to 'playerName'
-              'playerCategory':
-                  playerJson['role'], // Map 'role' to 'playerCategory'
-              'price': playerJson['isSold']
-                  ? 0
-                  : basePrice, // Assuming base price for unsold
-              'status': playerJson['isSold']
-                  ? 'Sold'
-                  : 'Upcoming', // Map 'isSold' to 'status'
-              'isFavorite':
-                  false, // No 'isFavorite' in API, so default to false
-              'imageUrl': playerJson['profileImage'] ??
-                  'https://placehold.co/100x100/333333/FFFFFF?text=Player',
-            });
-          }
+          allPlayers.addAll(players);
         });
-        print('Players loaded successfully from API.');
+
+        print('Players loaded successfully with favorite status.');
       } else {
         print('Failed to load players from API: ${response.statusCode}');
         _showSnackbar(
             'Failed to load players from API. Please try again later.');
-        // _initializeDefaultPlayers(); // Fallback to a dummy function if needed for testing
       }
     } catch (e) {
       print('Error fetching players from API: $e');
       _showSnackbar('Error fetching players. Please check your connection.');
-      // _initializeDefaultPlayers(); // Fallback on error if needed for testing
     }
   }
 
@@ -527,7 +621,7 @@ class _AuctionPageState extends State<AuctionPage> {
         soldTo = null;
         // The bid increment field will keep its last value
       });
-      _saveAuctionStateToBackend(); // Save state after loading next player
+      // _saveAuctionStateToBackend(); // Save state after loading next player
     } else {
       // All players for the current phase have been auctioned
       setState(() {
@@ -543,7 +637,7 @@ class _AuctionPageState extends State<AuctionPage> {
           _auctionPhase = 'finished'; // Unsold auction finished
         }
       });
-      _saveAuctionStateToBackend(); // Save state after phase finishes
+      // _saveAuctionStateToBackend(); // Save state after phase finishes
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('All players in this phase have been auctioned!'),
@@ -570,10 +664,7 @@ class _AuctionPageState extends State<AuctionPage> {
       _auctionPhase = 'mainAuction';
       _currentPlayerIndex = 0;
     });
-    _loadNextPlayerForAuction(); // This will also save state
-    if (shouldSaveState) {
-      _saveAuctionStateToBackend(); // Save state when starting auction
-    }
+    _loadNextPlayerForAuction(); // This automatically saves state
   }
 
   // Function to prepare and sort players for the unsold players auction
@@ -589,9 +680,6 @@ class _AuctionPageState extends State<AuctionPage> {
       _currentPlayerIndex = 0;
     });
     _loadNextPlayerForAuction(); // This will also save state
-    if (shouldSaveState) {
-      _saveAuctionStateToBackend(); // Save state when starting unsold auction
-    }
   }
 
   // Function to increase the current bid
@@ -631,7 +719,7 @@ class _AuctionPageState extends State<AuctionPage> {
       currentBid += increment; // Update current bid
       selectedTeam = teamName;
     });
-    _saveAuctionStateToBackend(); // Save state after bid
+    // _saveAuctionStateToBackend(); // Save state after bid
   }
 
   // New API call to fetch a team's players
@@ -759,15 +847,6 @@ class _AuctionPageState extends State<AuctionPage> {
                                               color: Colors.grey,
                                             ),
                                           ),
-                                          if (soldPrice != 'N/A')
-                                            Text(
-                                              'Sold for: $soldPrice PTS',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
                                         ],
                                       ),
                                     ),
@@ -805,6 +884,22 @@ class _AuctionPageState extends State<AuctionPage> {
     );
   }
 
+  Future<bool> isPlayerFavourite(int playerId) async {
+    final String url =
+        'https://localhost:7116/api/Tournament/IsFavourite/$playerId';
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        // Assuming the response is just a boolean true/false
+        final bool isFav = json.decode(response.body) as bool;
+        return isFav;
+      }
+    } catch (e) {
+      print('Error checking favorite status: $e');
+    }
+    return false;
+  }
+
   // Function to assign the player to the selected team
   void assignPlayer() {
     if (selectedTeam == null) {
@@ -822,13 +917,12 @@ class _AuctionPageState extends State<AuctionPage> {
           '$selectedTeam has reached its player limit of $playersPerTeamLimit!');
       return;
     }
-
     if (team['wallet'] < currentBid) {
       _showSnackbar('$selectedTeam has insufficient funds!');
       return;
     }
+
     setState(() {
-      print(selectedTeam);
       soldTo = selectedTeam;
       team['wallet'] -= currentBid; // Deduct wallet balance
       final playerIndexInAllPlayers =
@@ -836,8 +930,22 @@ class _AuctionPageState extends State<AuctionPage> {
       if (playerIndexInAllPlayers != -1) {
         allPlayers[playerIndexInAllPlayers]['status'] = 'Sold to $selectedTeam';
         allPlayers[playerIndexInAllPlayers]['soldPrice'] = currentBid;
-        _updatePlayerInBackend(
-            allPlayers[playerIndexInAllPlayers]); // Individual player update
+
+        // Call backend update for individual player state (optional)
+        // _updatePlayerInBackend(allPlayers[playerIndexInAllPlayers]);
+
+        // Call the new SellPlayer API endpoint here
+        final playerId =
+            int.tryParse(allPlayers[playerIndexInAllPlayers]['id']) ?? 0;
+        final teamId = team['id'] as int;
+        final tournamentId = widget.tournamentId;
+
+        _markPlayerAsSoldToApi(
+          tournamentId: tournamentId,
+          teamId: teamId,
+          playerId: playerId,
+          soldPrice: currentBid,
+        );
       }
       soldPlayers.add({
         'playerName': playerName,
@@ -846,7 +954,7 @@ class _AuctionPageState extends State<AuctionPage> {
         'imageUrl': playerImageUrl,
       });
     });
-    _saveAuctionStateToBackend(); // Save overall state (teams, etc.)
+    // _saveAuctionStateToBackend(); // Save overall state (teams, etc.)
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -873,8 +981,8 @@ class _AuctionPageState extends State<AuctionPage> {
           allPlayers.indexWhere((p) => p['playerName'] == playerName);
       if (playerIndexInAllPlayers != -1) {
         allPlayers[playerIndexInAllPlayers]['status'] = 'Unsold';
-        _updatePlayerInBackend(
-            allPlayers[playerIndexInAllPlayers]); // Individual player update
+        // _updatePlayerInBackend(
+        // allPlayers[playerIndexInAllPlayers]); // Individual player update
       }
       unsoldPlayers.add({
         'playerName': playerName,
@@ -882,7 +990,7 @@ class _AuctionPageState extends State<AuctionPage> {
         'imageUrl': playerImageUrl,
       });
     });
-    _saveAuctionStateToBackend(); // Save overall state
+    // _saveAuctionStateToBackend(); // Save overall state
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -906,7 +1014,7 @@ class _AuctionPageState extends State<AuctionPage> {
       currentBid = basePrice;
       selectedTeam = null;
     });
-    _saveAuctionStateToBackend(); // Save state after bid reset
+    // _saveAuctionStateToBackend(); // Save state after bid reset
   }
 
   // Function to refresh the player for the next auction round
@@ -918,12 +1026,19 @@ class _AuctionPageState extends State<AuctionPage> {
   }
 
   // Function to toggle favorite status of a player
-  void toggleFavorite(int index) {
+  void toggleFavorite(int index) async {
+    if (!mounted) return;
+
+    // Optimistically update UI first
     setState(() {
       allPlayers[index]['isFavorite'] =
           !(allPlayers[index]['isFavorite'] ?? false);
     });
-    _updatePlayerInBackend(allPlayers[index]); // Individual player update
+
+    final playerId = int.tryParse(allPlayers[index]['id']) ?? 0;
+
+    // Call new API to toggle favorite on the server
+    await markPlayerFavourite(playerId);
   }
 
   // Function to explicitly re-fetch all players from the simulated backend
@@ -934,7 +1049,7 @@ class _AuctionPageState extends State<AuctionPage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: lightBlue, // App bar background
@@ -971,12 +1086,7 @@ class _AuctionPageState extends State<AuctionPage> {
             labelColor: accentOrange,
             unselectedLabelColor: Colors.white70,
             indicatorColor: accentOrange,
-            tabs: [
-              Tab(text: 'Auction'),
-              Tab(text: 'All'),
-              Tab(text: 'Sold'),
-              Tab(text: 'Unsold'),
-            ],
+            tabs: [Tab(text: 'Auction'), Tab(text: 'All'), Tab(text: 'Sold')],
           ),
         ),
         body: Stack(
@@ -992,8 +1102,7 @@ class _AuctionPageState extends State<AuctionPage> {
               children: [
                 _buildAuctionView(),
                 _buildPlayersTab('All'),
-                _buildPlayersTab('Sold'),
-                _buildPlayersTab('Unsold'),
+                _buildSoldPlayersTab(),
               ],
             ),
           ],
@@ -1525,19 +1634,6 @@ class _AuctionPageState extends State<AuctionPage> {
                           }
                         },
                       ),
-                    Text(
-                      player['status'] == 'Sold to ${player['soldTo']}'
-                          ? 'Sold for: ${player['soldPrice']}'
-                          : player['status'],
-                      style: TextStyle(
-                        color: player['status'] == 'Unsold'
-                            ? Colors.redAccent
-                            : player['status'].startsWith('Sold')
-                                ? Colors.greenAccent
-                                : Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -1545,6 +1641,62 @@ class _AuctionPageState extends State<AuctionPage> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildSoldPlayersTab() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchSoldPlayers(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+              child: Text('No sold players available.',
+                  style: TextStyle(color: Colors.white70)));
+        } else {
+          final soldPlayers = snapshot.data!;
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {}); // Refresh widget to reload FutureBuilder
+            },
+            color: accentOrange,
+            backgroundColor: primaryBlue,
+            child: ListView.builder(
+              itemCount: soldPlayers.length,
+              itemBuilder: (context, index) {
+                final player = soldPlayers[index];
+                return Card(
+                  color: lightBlue.withOpacity(0.8),
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15.0),
+                    side: const BorderSide(color: Colors.white10),
+                  ),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: accentOrange,
+                      backgroundImage: NetworkImage(player['imageUrl']),
+                      radius: 25,
+                    ),
+                    title: Text(
+                      player['playerName'],
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      player['playerCategory'],
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }
+      },
     );
   }
 }
