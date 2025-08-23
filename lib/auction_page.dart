@@ -138,6 +138,9 @@ class _AuctionPageState extends State<AuctionPage>
   String _storedMobileNumber = '';
   late TabController _tabController;
   late Future<List<Map<String, dynamic>>> _soldPlayersFuture;
+  bool _hasAuctionStarted = false;
+  bool _isLoadingAuctionState = true;
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +148,7 @@ class _AuctionPageState extends State<AuctionPage>
     _loadStoredMobileNumber(); // Load the mobile number from SharedPreferences
     // Load initial state from backend after getting the mobile number
     _loadAuctionStateFromBackend();
+    _checkAuctionState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (_tabController.index == 2) {
@@ -160,6 +164,51 @@ class _AuctionPageState extends State<AuctionPage>
   void dispose() {
     _bidIncrementController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startAuctionViaApi() async {
+    final url =
+        'https://localhost:7116/api/Tournament/SetAuctionState?tournamentId=${widget.tournamentId}';
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final bool success = json.decode(response.body);
+        if (success) {
+          setState(() => _hasAuctionStarted = true);
+          _preparePlayersForMainAuction();
+        } else {
+          _showSnackbar('Failed to start auction.');
+        }
+      } else {
+        _showSnackbar('Error starting auction: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error calling SetAuctionState: $e');
+      _showSnackbar('Network error while starting auction.');
+    }
+  }
+
+  Future<void> _checkAuctionState() async {
+    final url =
+        'https://localhost:7116/api/Tournament/GetAuctionState?tournamentId=${widget.tournamentId}';
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final bool state = json.decode(response.body);
+        setState(() {
+          _hasAuctionStarted = state;
+          _isLoadingAuctionState = false;
+        });
+        if (state) {
+          _preparePlayersForMainAuction();
+        }
+      } else {
+        setState(() => _isLoadingAuctionState = false);
+      }
+    } catch (e) {
+      print('Error fetching auction state: $e');
+      setState(() => _isLoadingAuctionState = false);
+    }
   }
 
   Future<void> _markPlayerAsSoldToApi({
@@ -1112,56 +1161,38 @@ class _AuctionPageState extends State<AuctionPage>
   }
 
   Widget _buildAuctionView() {
-    // If auction is not started, show the 'Start Auction' button (only for admin)
-    if (_auctionPhase == 'setup' && _isAdmin) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ElevatedButton(
-              onPressed: () => _preparePlayersForMainAuction(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentOrange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-              ),
-              child: const Text(
-                'Start Main Auction',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12), // spacing between buttons
-            ElevatedButton(
-              onPressed: _showShareOverlayDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentOrange, // same as Start Main Auction
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-              ),
-              child: const Text(
-                'Share Overlay',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
+    if (_isLoadingAuctionState) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // If auction has started via API or phase is already 'mainAuction'
+    if (_hasAuctionStarted || _auctionPhase == 'mainAuction') {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            return Row(
+              children: [
+                Expanded(flex: 2, child: _buildPlayerInfoSection()),
+                Expanded(
+                    flex: 1,
+                    child: _buildTeamBiddingSection(isWideScreen: true)),
+              ],
+            );
+          } else {
+            return Column(
+              children: [
+                Expanded(flex: 2, child: _buildPlayerInfoSection()),
+                Expanded(
+                    flex: 1,
+                    child: _buildTeamBiddingSection(isWideScreen: false)),
+              ],
+            );
+          }
+        },
       );
     }
 
+    // If auction is finished
     if (_auctionPhase == 'finished' || playerName == "Auction Finished!") {
       return Center(
         child: Column(
@@ -1201,35 +1232,74 @@ class _AuctionPageState extends State<AuctionPage>
       );
     }
 
-    // The main auction view logic, now with responsive layout.
+    // If auction is in setup phase and user is admin
+    if (_auctionPhase == 'setup' && _isAdmin) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+              onPressed: _startAuctionViaApi,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentOrange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              ),
+              child: const Text(
+                'Start Main Auction',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _showShareOverlayDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentOrange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              ),
+              child: const Text(
+                'Share Overlay',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Default fallback: show responsive layout
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Use a different layout for wide screens (e.g., web)
         if (constraints.maxWidth > 800) {
           return Row(
             children: [
+              Expanded(flex: 2, child: _buildPlayerInfoSection()),
               Expanded(
-                flex: 2,
-                child: _buildPlayerInfoSection(),
-              ),
-              Expanded(
-                flex: 1,
-                child: _buildTeamBiddingSection(isWideScreen: true),
-              ),
+                  flex: 1, child: _buildTeamBiddingSection(isWideScreen: true)),
             ],
           );
         } else {
-          // Keep the existing mobile-first layout for smaller screens
           return Column(
             children: [
+              Expanded(flex: 2, child: _buildPlayerInfoSection()),
               Expanded(
-                flex: 2,
-                child: _buildPlayerInfoSection(),
-              ),
-              Expanded(
-                flex: 1,
-                child: _buildTeamBiddingSection(isWideScreen: false),
-              ),
+                  flex: 1,
+                  child: _buildTeamBiddingSection(isWideScreen: false)),
             ],
           );
         }
