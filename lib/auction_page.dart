@@ -94,7 +94,7 @@ class _AuctionPageState extends State<AuctionPage> {
       Color(0xFF2A1C63); // Color for bid display boxes
 
   // Base URL for your simulated backend API
-  final String _baseUrl = 'https://sportsdecor.somee.com/api/Tournament';
+  final String _baseUrl = 'https://localhost:7116/api/Tournament';
 
   final Uuid _uuid = const Uuid(); // Instance to generate unique IDs
 
@@ -175,7 +175,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // --- FUNCTION TO FETCH TEAMS FROM API ---
   Future<void> _fetchTeamsFromApi() async {
     final String url =
-        'https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}';
+        'https://localhost:7116/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -637,7 +637,7 @@ class _AuctionPageState extends State<AuctionPage> {
   // New API call to fetch a team's players
   Future<List<Map<String, dynamic>>> _fetchTeamPlayers(int teamId) async {
     final String url =
-        'https://sportsdecor.somee.com/api/Player/GetPlayerListByTeam/$teamId';
+        'https://localhost:7116/api/Player/GetPlayerListByTeam/$teamId';
     try {
       final response = await http.get(Uri.parse(url));
 

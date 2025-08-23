@@ -260,7 +260,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
       }
 
       final String playerApiUrl =
-          'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
+          'https://localhost:7116/api/Player/GetPlayer/$playerId';
       final playerResponse = await http.get(Uri.parse(playerApiUrl));
 
       if (playerResponse.statusCode == 200) {
@@ -332,7 +332,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
       _isSaving = true;
     });
 
-    const String apiUrl = 'https://sportsdecor.somee.com/api/Player/SavePlayer';
+    const String apiUrl = 'https://localhost:7116/api/Player/SavePlayer';
 
     try {
       var request = http.MultipartRequest('POST', Uri.parse(apiUrl));

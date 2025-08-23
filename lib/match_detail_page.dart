@@ -58,7 +58,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
   late HubConnection _hubConnection;
 
   // API Base URL
-  final String _apiBaseUrl = "https://sportsdecor.somee.com/api/Score";
+  final String _apiBaseUrl = "https://localhost:7116/api/Score";
 
   // Live match data (these are the only fields that will be updated by SignalR/GetScore API)
   int _currentRuns = 0; // Total runs for the current innings
@@ -462,8 +462,7 @@ class _MatchDetailPageState extends State<MatchDetailPage>
 
   // Method to initialize and connect to SignalR
   Future<void> _initSignalR() async {
-    const hubUrl =
-        "https://sportsdecor.somee.com/scoreHub"; // Replace with actual URL
+    const hubUrl = "https://localhost:7116/scoreHub"; // Replace with actual URL
 
     _hubConnection = HubConnectionBuilder()
         .withUrl(hubUrl)

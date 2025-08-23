@@ -104,8 +104,7 @@ class _AddTournamentPageState extends State<AddTournamentPage> {
       _loading = true; // Show loading indicator
     });
 
-    final url =
-        'https://sportsdecor.somee.com/api/Tournament/GetTournament/$id';
+    final url = 'https://localhost:7116/api/Tournament/GetTournament/$id';
 
     try {
       final response = await http.get(Uri.parse(url));

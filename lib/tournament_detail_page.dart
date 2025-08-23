@@ -24,6 +24,44 @@ class Team {
   }
 }
 
+class Fixture {
+  final int id;
+  final int tournamentId;
+  final int teamAId;
+  final int teamBId;
+  final String teamAName;
+  final String teamBName;
+  final String venue;
+  final String date;
+  final String? score;
+
+  Fixture({
+    required this.id,
+    required this.tournamentId,
+    required this.teamAId,
+    required this.teamBId,
+    required this.teamAName,
+    required this.teamBName,
+    required this.venue,
+    required this.date,
+    this.score,
+  });
+
+  factory Fixture.fromJson(Map<String, dynamic> json) {
+    return Fixture(
+      id: json['id'] as int,
+      tournamentId: json['tournamentId'] as int,
+      teamAId: json['teamAId'] as int,
+      teamBId: json['teamBId'] as int,
+      teamAName: json['teamAName'] as String,
+      teamBName: json['teamBName'] as String,
+      venue: json['venue'] as String,
+      date: json['date'] as String,
+      score: json['score'] as String?,
+    );
+  }
+}
+
 class TournamentDetailPage extends StatelessWidget {
   final Tournament tournament;
   final int matchId;
@@ -188,7 +226,6 @@ class InfoTile extends StatelessWidget {
 class FixturesTab extends StatefulWidget {
   final Tournament tournament;
   final bool isAdmin;
-
   const FixturesTab(
       {super.key, required this.tournament, required this.isAdmin});
 
@@ -197,49 +234,6 @@ class FixturesTab extends StatefulWidget {
 }
 
 class _FixturesTabState extends State<FixturesTab> {
-  final List<Map<String, String>> fixtures = [
-    {
-      'matchId': '1',
-      'teamA': 'Team India',
-      'teamB': 'Team South Africa',
-      'date': '2025-05-18',
-      'venue': 'Stadium A',
-      'score': '122/6 (20) - 121/8 (20)',
-    },
-    {
-      'matchId': '2',
-      'teamA': 'Team C',
-      'teamB': 'Team D',
-      'date': '2025-05-27',
-      'venue': 'Stadium B',
-      'score': '',
-    },
-    {
-      'matchId': '3',
-      'teamA': 'Player 1',
-      'teamB': 'Player 2',
-      'date': '2025-06-01',
-      'venue': 'Court 1',
-      'score': '21-15, 21-18',
-    },
-    {
-      'matchId': '4',
-      'teamA': 'Team Alpha',
-      'teamB': 'Team Beta',
-      'date': '2025-06-05',
-      'venue': 'Arena X',
-      'score': 'Upcoming',
-    },
-    {
-      'matchId': '5',
-      'teamA': 'Player A',
-      'teamB': 'Player B',
-      'date': '2025-06-10',
-      'venue': 'Court Y',
-      'score': 'Upcoming',
-    },
-  ];
-
   final DateFormat formatter = DateFormat('yyyy-MM-dd');
 
   static const Color primaryBlue = Color(0xFF1A0F49);
@@ -250,16 +244,49 @@ class _FixturesTabState extends State<FixturesTab> {
   Team? _selectedTeamA;
   Team? _selectedTeamB;
 
+  // New state variable to hold the dynamic fixtures
+  List<Fixture> _fixtures = [];
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    // Load both teams and fixtures when the widget is initialized
     _fetchTeamsForTournament();
+    _fetchFixturesForTournament();
+  }
+
+  Future<void> _deleteFixtureFromBackend(int fixtureId) async {
+    final url = Uri.parse(
+        "https://localhost:7116/api/Tournament/DeleteFixture?id=$fixtureId");
+    try {
+      final response = await http.delete(url);
+      if (response.statusCode == 200) {
+        _fetchFixturesForTournament();
+        // Remove from local list and show success.
+        setState(() {
+          _fixtures.removeWhere((fixture) => fixture.id == fixtureId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Fixture deleted successfully!")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  "Failed to delete fixture: Status ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error deleting fixture: ${e.toString()}")),
+      );
+    }
   }
 
   Future<void> _fetchTeamsForTournament() async {
     final url = Uri.parse(
-        "https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournament.id}");
-
+        "https://localhost:7116/api/Team/GetAllTeamsByTournamentId?id=${widget.tournament.id}");
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -281,23 +308,79 @@ class _FixturesTabState extends State<FixturesTab> {
     }
   }
 
-  void addFixture(Map<String, String> newFixture) {
+  // New method to fetch all fixtures from the back-end
+  Future<void> _fetchFixturesForTournament() async {
     setState(() {
-      fixtures.add(newFixture);
+      _isLoading = true;
     });
+
+    final url = Uri.parse(
+        "https://localhost:7116/api/Tournament/GetFixturesByTournamentId?id=${widget.tournament.id}");
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _fixtures = data.map((f) => Fixture.fromJson(f)).toList();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  "Failed to load fixtures: Status ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching fixtures: ${e.toString()}")),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  void deleteFixture(int index) {
-    setState(() {
-      fixtures.removeAt(index);
-    });
+  // New method to post a new fixture to the back-end
+  Future<void> _postNewFixture(Map<String, dynamic> newFixtureData) async {
+    final url = Uri.parse("https://localhost:7116/api/Tournament/AddFixture");
+    try {
+      final response = await http.post(
+        url,
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(newFixtureData),
+      );
+
+      if (response.statusCode == 201) {
+        // Success: Refetch the list to synchronize UI with the database
+        _fetchFixturesForTournament();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Fixture added successfully!")),
+        );
+      } else {
+        // Handle API errors
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text("Failed to add fixture: Status ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error adding fixture: ${e.toString()}")),
+      );
+    }
   }
 
   Future<void> _showAddFixtureDialog() async {
     final venueController = TextEditingController();
     DateTime? selectedDate;
-    _selectedTeamA = null;
-    _selectedTeamB = null;
+    Team? selectedTeamA;
+    Team? selectedTeamB;
 
     await showDialog(
       context: context,
@@ -312,160 +395,136 @@ class _FixturesTabState extends State<FixturesTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    DropdownButtonFormField<Team>(
-                      value: _selectedTeamA,
-                      hint: const Text('Select Team A',
-                          style: TextStyle(color: Colors.white70)),
+                    // Team A Dropdown
+                    DropdownButton<Team>(
+                      hint: const Text("Select Team A",
+                          style: TextStyle(color: Colors.white)),
+                      value: selectedTeamA,
+                      isExpanded: true,
                       dropdownColor: lightBlue,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Team A',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: lightBlue),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: accentOrange),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      items: _availableTeams
-                          .where((team) => team != _selectedTeamB)
-                          .map((team) => DropdownMenuItem<Team>(
-                                value: team,
-                                child: Text(team.teamName),
-                              ))
-                          .toList(),
-                      onChanged: (Team? newValue) {
+                      items: _availableTeams.map((team) {
+                        return DropdownMenuItem<Team>(
+                          value: team,
+                          child: Text(team.teamName,
+                              style: const TextStyle(color: Colors.white)),
+                        );
+                      }).toList(),
+                      onChanged: (team) {
                         setState(() {
-                          _selectedTeamA = newValue;
+                          selectedTeamA = team;
+                          // Remove team from selection for Team B if needed
+                          if (selectedTeamA == selectedTeamB)
+                            selectedTeamB = null;
                         });
                       },
                     ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<Team>(
-                      value: _selectedTeamB,
-                      hint: const Text('Select Team B',
-                          style: TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 16),
+                    // Team B Dropdown
+                    DropdownButton<Team>(
+                      hint: const Text("Select Team B",
+                          style: TextStyle(color: Colors.white)),
+                      value: selectedTeamB,
+                      isExpanded: true,
                       dropdownColor: lightBlue,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Team B',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: lightBlue),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: accentOrange),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                       items: _availableTeams
-                          .where((team) => team != _selectedTeamA)
-                          .map((team) => DropdownMenuItem<Team>(
-                                value: team,
-                                child: Text(team.teamName),
-                              ))
-                          .toList(),
-                      onChanged: (Team? newValue) {
+                          .where((team) => team != selectedTeamA)
+                          .map((team) {
+                        return DropdownMenuItem<Team>(
+                          value: team,
+                          child: Text(team.teamName,
+                              style: const TextStyle(color: Colors.white)),
+                        );
+                      }).toList(),
+                      onChanged: (team) {
                         setState(() {
-                          _selectedTeamB = newValue;
+                          selectedTeamB = team;
                         });
                       },
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
+                    // Venue field
                     TextField(
                       controller: venueController,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'Venue',
+                        labelText: "Venue",
                         labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: lightBlue),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: accentOrange),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        filled: true,
+                        fillColor: lightBlue.withOpacity(0.5),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                          builder: (context, child) {
-                            return Theme(
-                              data: ThemeData.dark().copyWith(
-                                colorScheme: ColorScheme.dark(
-                                  primary: accentOrange,
-                                  onPrimary: Colors.white,
-                                  surface: lightBlue,
-                                  onSurface: Colors.white,
-                                ),
-                                dialogBackgroundColor: primaryBlue,
-                              ),
-                              child: child!,
+                    const SizedBox(height: 16),
+                    // Date picker
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedDate == null
+                                ? "Select Date"
+                                : DateFormat('yyyy-MM-dd')
+                                    .format(selectedDate!),
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today,
+                              color: accentOrange),
+                          onPressed: () async {
+                            DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
                             );
+                            if (picked != null) {
+                              setState(() {
+                                selectedDate = picked;
+                              });
+                            }
                           },
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            selectedDate = pickedDate;
-                          });
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: lightBlue,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text(selectedDate == null
-                          ? "Select Date"
-                          : formatter.format(selectedDate!)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel',
-                        style: TextStyle(color: Colors.white70))),
+                  child: const Text("Cancel",
+                      style: TextStyle(color: Colors.white)),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
                 ElevatedButton(
-                  onPressed: () {
-                    if (_selectedTeamA != null &&
-                        _selectedTeamB != null &&
-                        venueController.text.isNotEmpty &&
-                        selectedDate != null) {
-                      final newFixture = {
-                        'matchId': (fixtures.length + 1).toString(),
-                        'teamA': _selectedTeamA!.teamName,
-                        'teamB': _selectedTeamB!.teamName,
-                        'venue': venueController.text,
-                        'date': formatter.format(selectedDate!),
-                        'score': '',
-                      };
-                      addFixture(newFixture);
-                      Navigator.pop(context);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text(
-                                'Please select both teams, fill venue, and select a date.')),
-                      );
-                    }
-                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: accentOrange,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Save'),
+                  child: const Text("Add"),
+                  onPressed: () {
+                    // Basic validation
+                    if (selectedTeamA == null ||
+                        selectedTeamB == null ||
+                        venueController.text.trim().isEmpty ||
+                        selectedDate == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Please fill all fields.")),
+                      );
+                      return;
+                    }
+                    final newFixture = {
+                      'tournamentId': widget.tournament.id,
+                      'teamAId': selectedTeamA!.id,
+                      'teamBId': selectedTeamB!.id,
+                      'teamAName': selectedTeamA!.teamName,
+                      'teamBName': selectedTeamB!.teamName,
+                      'venue': venueController.text.trim(),
+                      'date': DateFormat('yyyy-MM-dd').format(selectedDate!),
+                      // score is typically empty for a new fixture
+                    };
+                    _postNewFixture(newFixture);
+                    Navigator.pop(context);
+                  },
                 ),
               ],
             );
@@ -475,138 +534,135 @@ class _FixturesTabState extends State<FixturesTab> {
     );
   }
 
+  // The deleteFixture method remains a local update for the time being
+  // A complete solution would also implement a back-end DELETE endpoint.
+  void deleteFixture(int index) {
+    setState(() {
+      _fixtures.removeAt(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final String sportType =
-        widget.tournament.sportType?.toLowerCase() ?? 'unknown';
     return Scaffold(
       backgroundColor: primaryBlue,
-      body: ListView.builder(
-        itemCount: fixtures.length,
-        itemBuilder: (context, index) {
-          final match = fixtures[index];
-          final fixtureDate = formatter.parse(match['date']!);
-          final isUpcoming = fixtureDate.isAfter(now);
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            elevation: 5,
-            color: lightBlue.withOpacity(0.7),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              onTap: () {
-                if (sportType == 'cricket') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MatchDetailPage(
-                        matchId: int.parse(match['matchId']!),
-                        match: {
-                          'match': '${match['teamA']} vs ${match['teamB']}',
-                          'teamA': match['teamA'],
-                          'teamB': match['teamB'],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: accentOrange))
+          : _fixtures.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No fixtures found for this tournament.',
+                    style: TextStyle(fontSize: 18, color: Colors.white70),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _fixtures.length,
+                  itemBuilder: (context, index) {
+                    final match = _fixtures[index];
+                    final now = DateTime.now();
+                    final fixtureDate = formatter.parse(match.date);
+                    final isUpcoming = fixtureDate.isAfter(now);
+                    final String sportType =
+                        widget.tournament.sportType?.toLowerCase() ?? 'unknown';
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      elevation: 5,
+                      color: lightBlue.withOpacity(0.7),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        onTap: () {
+                          if (sportType == 'cricket') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MatchDetailPage(
+                                  matchId: match.id,
+                                  match: {
+                                    'match':
+                                        '${match.teamAName} vs ${match.teamBName}',
+                                    'teamA': match.teamAName,
+                                    'teamB': match.teamBName,
+                                  },
+                                ),
+                              ),
+                            );
+                          } else if ([
+                            'badminton',
+                            'tennis',
+                            'pickleball',
+                            'throwball'
+                          ].contains(sportType)) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RacquetSportApp(),
+                              ),
+                            );
+                          } else if (sportType == 'football') {
+                            List<String> team1Players = List.generate(11,
+                                (i) => '${match.teamAName} Player ${i + 1}');
+                            List<String> team2Players = List.generate(11,
+                                (i) => '${match.teamBName} Player ${i + 1}');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FootballScoringScreen(
+                                  matchId: match.id.toString(),
+                                  team1Players: team1Players,
+                                  team2Players: team2Players,
+                                  team1Name: match.teamAName,
+                                  team2Name: match.teamBName,
+                                ),
+                              ),
+                            );
+                          }
                         },
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Text(
+                          '${match.teamAName} vs ${match.teamBName}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                  'Teams: ${match.teamAName} vs ${match.teamBName}',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                              Text('Venue: ${match.venue}',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                              Text('Date: ${match.date}',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                              Text('Score: ${match.score ?? "Upcoming"}',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                        trailing: widget.isAdmin
+                            ? IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.redAccent),
+                                onPressed: () {
+                                  _deleteFixtureFromBackend(
+                                      match.id); // Pass the fixture id
+                                },
+                              )
+                            : null,
                       ),
-                    ),
-                  );
-                } else if (['badminton', 'tennis', 'pickleball', 'throwball']
-                    .contains(sportType)) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RacquetSportApp(),
-                    ),
-                  );
-                } else if (sportType == 'football') {
-                  List<String> team1Players = [
-                    '${match['teamA']} Player 1',
-                    '${match['teamA']} Player 2',
-                    '${match['teamA']} Player 3',
-                    '${match['teamA']} Player 4',
-                    '${match['teamA']} Player 5',
-                    '${match['teamA']} Player 6',
-                    '${match['teamA']} Player 7',
-                    '${match['teamA']} Player 8',
-                    '${match['teamA']} Player 9',
-                    '${match['teamA']} Player 10',
-                    '${match['teamA']} Player 11'
-                  ];
-                  List<String> team2Players = [
-                    '${match['teamB']} Player 1',
-                    '${match['teamB']} Player 2',
-                    '${match['teamB']} Player 3',
-                    '${match['teamB']} Player 4',
-                    '${match['teamB']} Player 5',
-                    '${match['teamB']} Player 6',
-                    '${match['teamB']} Player 7',
-                    '${match['teamB']} Player 8',
-                    '${match['teamB']} Player 9',
-                    '${match['teamB']} Player 10',
-                    '${match['teamB']} Player 11'
-                  ];
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FootballScoringScreen(
-                        matchId: match['matchId']!,
-                        team1Players: team1Players,
-                        team2Players: team2Players,
-                        team1Name: match['teamA']!,
-                        team2Name: match['teamB']!,
-                      ),
-                    ),
-                  );
-                }
-              },
-              contentPadding: const EdgeInsets.all(16),
-              title: Text(
-                '${match['teamA']} vs ${match['teamB']}',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Venue: ${match['venue']}',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Date: ${match['date']}',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      match['score']!.isNotEmpty
-                          ? 'Result: ${match['score']}'
-                          : 'Status: Upcoming',
-                      style: TextStyle(
-                        color: match['score']!.isNotEmpty
-                            ? Colors.greenAccent
-                            : accentOrange,
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
-              trailing: widget.isAdmin
-                  ? IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                      onPressed: () {
-                        deleteFixture(index);
-                      },
-                    )
-                  : null,
-            ),
-          );
-        },
-      ),
       floatingActionButton: widget.isAdmin
           ? FloatingActionButton(
               onPressed: _showAddFixtureDialog,
@@ -642,7 +698,7 @@ class _TeamsTabState extends State<TeamsTab> {
 
   Future<void> _fetchTeams() async {
     final url = Uri.parse(
-        "https://sportsdecor.somee.com/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}");
+        "https://localhost:7116/api/Team/GetAllTeamsByTournamentId?id=${widget.tournamentId}");
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -702,21 +758,6 @@ class _TeamsTabState extends State<TeamsTab> {
                         ),
                         Row(
                           children: [
-                            ElevatedButton(
-                              onPressed: () {
-                                // TODO: Implement join team logic
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: accentOrange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text('Join Team'),
-                            ),
                             IconButton(
                               icon: const Icon(Icons.arrow_forward_ios,
                                   color: Colors.white70, size: 16),

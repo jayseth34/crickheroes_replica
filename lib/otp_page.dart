@@ -65,7 +65,7 @@ class _OtpPageState extends State<OtpPage> {
   Future<void> _loginAndFetchPlayerInfo() async {
     // API 1: Login to get player ID
     final String loginApiUrl =
-        'https://sportsdecor.somee.com/api/Auth/loginWithMob?mobNo=${widget.phone}';
+        'https://localhost:7116/api/Auth/loginWithMob?mobNo=${widget.phone}';
 
     try {
       final loginResponse = await http.get(Uri.parse(loginApiUrl));
@@ -82,7 +82,7 @@ class _OtpPageState extends State<OtpPage> {
 
           // API 2: Get player details using the ID
           final String playerApiUrl =
-              'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
+              'https://localhost:7116/api/Player/GetPlayer/$playerId';
           final playerResponse = await http.get(Uri.parse(playerApiUrl));
 
           if (playerResponse.statusCode == 200) {

@@ -72,7 +72,7 @@ class _PlayersPageState extends State<PlayersPage> {
     });
 
     final url = Uri.parse(
-        "https://sportsdecor.somee.com/api/Player/GetPlayerListByTeam/${widget.teamId}");
+        "https://localhost:7116/api/Player/GetPlayerListByTeam/${widget.teamId}");
 
     try {
       final response = await http.get(url);

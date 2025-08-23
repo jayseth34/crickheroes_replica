@@ -129,7 +129,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
     });
 
     final String apiUrl =
-        'https://sportsdecor.somee.com/api/Player/GetPlayer/$playerId';
+        'https://localhost:7116/api/Player/GetPlayer/$playerId';
     final url = Uri.parse(apiUrl);
 
     try {
@@ -510,8 +510,7 @@ class _AddPlayerPageState extends State<AddPlayerPage> {
   }
 
   Future<void> savePlayer() async {
-    final url =
-        Uri.parse("https://sportsdecor.somee.com/api/Player/SavePlayer");
+    final url = Uri.parse("https://localhost:7116/api/Player/SavePlayer");
     var request = http.MultipartRequest('POST', url);
 
     request.fields['TournamentId'] = widget.tournamentId.toString();

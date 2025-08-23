@@ -89,7 +89,7 @@ class _SearchTournamentPageState extends State<SearchTournamentPage> {
     print(widget.isAdmin);
     final String apiUrl = widget.isAdmin
         ? 'https://localhost:7116/api/Tournament/GetAdminTournaments?mobNo=$_storedMobileNumber'
-        : 'https://sportsdecor.somee.com/api/Tournament/GetAllTournaments';
+        : 'https://localhost:7116/api/Tournament/GetAllTournaments';
 
     try {
       final response = await http.get(Uri.parse(apiUrl));

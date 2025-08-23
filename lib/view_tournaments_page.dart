@@ -120,8 +120,8 @@ class _ViewTournamentsPageState extends State<ViewTournamentsPage> {
   }
 
   Future<void> fetchTournaments() async {
-    final url = Uri.parse(
-        "https://sportsdecor.somee.com/api/Tournament/GetAllTournaments");
+    final url =
+        Uri.parse("https://localhost:7116/api/Tournament/GetAllTournaments");
 
     try {
       final response = await http.get(url);
