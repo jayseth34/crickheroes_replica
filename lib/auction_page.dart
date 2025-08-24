@@ -1161,6 +1161,10 @@ class _AuctionPageState extends State<AuctionPage>
   }
 
   Widget _buildAuctionView() {
+    print(
+        'AuctionPhase: $_auctionPhase, isAdmin: $_isAdmin, UnsoldCount: ${allPlayers.where((p) => p['status'] == 'Unsold').length}');
+    print(jsonEncode(allPlayers));
+
     if (_isLoadingAuctionState) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -1207,7 +1211,7 @@ class _AuctionPageState extends State<AuctionPage>
               ),
             ),
             const SizedBox(height: 20),
-            if (unsoldPlayers.isNotEmpty && _isAdmin)
+            if (_isAdmin && allPlayers.any((p) => p['status'] == 'Unsold'))
               ElevatedButton(
                 onPressed: () => _preparePlayersForUnsoldAuction(),
                 style: ElevatedButton.styleFrom(
@@ -1219,7 +1223,7 @@ class _AuctionPageState extends State<AuctionPage>
                       const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 ),
                 child: const Text(
-                  'Start Unsold Players Auction',
+                  'Re-Auction Unsold Players',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
